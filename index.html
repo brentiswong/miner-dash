@@ -2,105 +2,186 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TEST UPDATE WORKING</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ocean Miner Dashboard - NGU TECH</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; }
-        .container { max-width: 1000px; margin: auto; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin-bottom: 25px; }
-        .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; }
-        .value { font-size: 1.8rem; font-weight: bold; color: white; }
+        :root { 
+            --bg: #0d1117; 
+            --card: #161b22; 
+            --text: #c9d1d9; 
+            --accent: #58a6ff; 
+            --border: #30363d; 
+            --ok: #3fb950; 
+            --err: #f85149; 
+        }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
+        .container { max-width: 1200px; margin: auto; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .label { font-size: 0.9rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05rem; }
+        .value { font-size: 2rem; font-weight: bold; color: white; margin-top: 5px; }
+        .sub-value { font-size: 0.9rem; color: var(--accent); margin-top: 5px; }
+        .chart-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 25px; height: 350px; }
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 12px; background: #1c2128; cursor: pointer; user-select: none; }
-        th:hover { color: var(--accent); }
-        td { padding: 12px; border-bottom: 1px solid var(--border); }
-        .status { font-weight: bold; }
+        th { text-align: left; padding: 15px; background: #1c2128; color: #8b949e; cursor: pointer; border-bottom: 1px solid var(--border); }
+        td { padding: 15px; border-bottom: 1px solid var(--border); font-size: 0.95rem; }
+        tr:hover { background: rgba(88, 166, 255, 0.05); }
+        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
     </style>
 </head>
 <body>
-
 <div class="container">
-    <div id="error-bar" style="color:var(--err); margin-bottom:15px; font-size:0.9rem;"></div>
-
     <div class="grid">
-        <div class="card"><div>Total Hashrate</div><div class="value" id="t_hr">Loading...</div></div>
-        <div class="card"><div>Unpaid Balance</div><div class="value" id="t_unpaid">Loading...</div></div>
-        <div class="card"><div>Est. Next Payout</div><div class="value" id="t_est">Loading...</div></div>
+        <div class="card">
+            <div class="label">Total Hashrate (5m)</div>
+            <div class="value" id="t_hr">0.00 TH/s</div>
+            <div class="sub-value" id="t_hr_3h">3h Avg: 0.00 TH/s</div>
+        </div>
+        <div class="card">
+            <div class="label">Unpaid Balance</div>
+            <div class="value" id="t_unpaid">0 sats</div>
+            <div class="sub-value" id="t_usd">Valuation: $0.00 USD</div>
+        </div>
+        <div class="card">
+            <div class="label">BTC/USD Spot</div>
+            <div class="value" id="btc_price">$0.00</div>
+            <div class="sub-value">Live from Coinbase</div>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="hashrateChart"></canvas>
     </div>
 
     <div class="table-container">
         <table>
             <thead>
                 <tr>
-                    <th onclick="doSort('name')">Worker <span id="s0">↕</span></th>
-                    <th onclick="doSort('h300')">5m <span id="s1">↕</span></th>
-                    <th onclick="doSort('h10800')">3h <span id="s2">↕</span></th>
-                    <th onclick="doSort('online')">Status <span id="s3">↕</span></th>
+                    <th onclick="doSort('name')">Worker Name ↕</th>
+                    <th onclick="doSort('h300')">Hashrate (5m) ↕</th>
+                    <th onclick="doSort('h10800')">Hashrate (3h) ↕</th>
+                    <th onclick="doSort('online')">Status ↕</th>
                 </tr>
             </thead>
-            <tbody id="w-body">
-                <tr><td colspan="4" style="text-align:center; padding:40px;">Connecting to Ocean...</td></tr>
-            </tbody>
+            <tbody id="w-body"></tbody>
         </table>
     </div>
 </div>
 
 <script>
-    // 1. GET WALLET (Injected by Netlify)
-    const WALLET = window.WALLET_ADDRESS;
+    // DASHBOARD CONFIGURATION
+    const WALLET = "bc1q76zgkz5ussy2hl54vdz7nv0q96kta82ckdu7ys";
+    const PROXY_BASE = 'https://api.allorigins.win/raw?url=';
+    const OCEAN_BASE = 'https://api.ocean.xyz/v1';
     
-    // 2. PUBLIC PROXY (This is the FIX: It bypasses Netlify redirects entirely)
-    const PROXY_URL = 'https://api.allorigins.win/raw?url=';
-    const OCEAN_API = 'https://api.ocean.xyz/v1';
-
+    let chart;
     let workers = [];
     let sortKey = 'h300';
     let sortAsc = false;
 
+    // Initialize Chart.js
+    function initChart() {
+        const ctx = document.getElementById('hashrateChart').getContext('2d');
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Total Hashrate (TH/s)',
+                    data: [],
+                    borderColor: '#58a6ff',
+                    backgroundColor: 'rgba(88, 166, 255, 0.1)',
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { 
+                        beginAtZero: true, 
+                        grid: { color: '#30363d' },
+                        ticks: { color: '#8b949e' }
+                    },
+                    x: { 
+                        grid: { display: false },
+                        ticks: { color: '#8b949e' }
+                    }
+                }
+            }
+        });
+    }
+
     async function update() {
-        if (!WALLET) {
-            document.getElementById('error-bar').innerText = "Error: Wallet not injected via Netlify Snippets.";
-            return;
-        }
-
         try {
-            // Encode the URLs to pass them through the AllOrigins proxy
-            const hrUrl = PROXY_URL + encodeURIComponent(`${OCEAN_API}/user_hashrate_full/${WALLET}`);
-            const snUrl = PROXY_URL + encodeURIComponent(`${OCEAN_API}/statsnap/${WALLET}`);
+            // URL Construction
+            const hrUrl = PROXY_BASE + encodeURIComponent(`${OCEAN_BASE}/user_hashrate_full/${WALLET}`);
+            const snUrl = PROXY_BASE + encodeURIComponent(`${OCEAN_BASE}/statsnap/${WALLET}`);
+            const btcUrl = "https://api.coinbase.com/v2/prices/BTC-USD/spot";
 
-            const [hrRes, snRes] = await Promise.all([ fetch(hrUrl), fetch(snUrl) ]);
-            
+            // Concurrent API Calls
+            const [hrRes, snRes, btcRes] = await Promise.all([
+                fetch(hrUrl), fetch(snUrl), fetch(btcUrl)
+            ]);
+
             const hrData = await hrRes.json();
             const snData = await snRes.json();
+            const btcData = await btcRes.json();
 
-            // UPDATE STATS
+            // 1. Process BTC Price & Earnings
+            const currentPrice = parseFloat(btcData.data.amount);
+            document.getElementById('btc_price').innerText = `$${currentPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+
             const stats = snData.result || snData;
-            document.getElementById('t_unpaid').innerText = (stats.unpaid || 0).toLocaleString() + ' sats';
-            document.getElementById('t_est').innerText = (stats.estimated_payout_next_block || 0).toLocaleString() + ' sats';
+            const satsBalance = stats.unpaid || 0;
+            const usdBalance = (satsBalance / 100000000) * currentPrice;
+            
+            document.getElementById('t_unpaid').innerText = `${satsBalance.toLocaleString()} sats`;
+            document.getElementById('t_usd').innerText = `Valuation: $${usdBalance.toFixed(2)} USD`;
 
-            // PROCESS WORKERS
+            // 2. Process Hashrate & Workers
             const wObj = hrData.result?.workers || {};
-            let totalHr = 0;
+            let total5m = 0;
+            let total3h = 0;
+
             workers = Object.keys(wObj).map(name => {
                 const s = wObj[name][0];
-                const h5m = (s.hashrate_300s || 0) / 1e12; // Convert to TH/s
-                totalHr += h5m;
-                return {
-                    name: name,
-                    h300: h5m,
-                    h10800: (s.hashrate_10800s || 0) / 1e12,
-                    online: h5m > 0
+                const h5 = (s.hashrate_300s || 0) / 1e12;
+                const h3 = (s.hashrate_10800s || 0) / 1e12;
+                total5m += h5;
+                total3h += h3;
+                return { 
+                    name, 
+                    h300: h5, 
+                    h10800: h3, 
+                    online: h5 > 0 
                 };
             });
 
-            document.getElementById('t_hr').innerText = totalHr.toFixed(2) + ' TH/s';
-            document.getElementById('error-bar').innerText = ""; 
+            document.getElementById('t_hr').innerText = `${total5m.toFixed(2)} TH/s`;
+            document.getElementById('t_hr_3h').innerText = `3h Avg: ${total3h.toFixed(2)} TH/s`;
+
+            // 3. Update Chart
+            const timeLabel = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            chart.data.labels.push(timeLabel);
+            chart.data.datasets[0].data.push(total5m.toFixed(2));
+            
+            // Keep last 12 points (1 hour of data at 5m intervals)
+            if (chart.data.labels.length > 12) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+            }
+            chart.update();
+
             render();
         } catch (e) {
-            console.error(e);
-            document.getElementById('error-bar').innerText = "Connection lost. Retrying in 5 minutes...";
+            console.error("Dashboard update failed:", e);
         }
     }
 
@@ -111,31 +192,28 @@
     }
 
     function render() {
-        const keys = ['name', 'h300', 'h10800', 'online'];
-        keys.forEach((k, i) => {
-            const el = document.getElementById('s' + i);
-            if (el) el.innerText = (k === sortKey) ? (sortAsc ? '↑' : '↓') : '↕';
-        });
-
         workers.sort((a, b) => {
             let vA = a[sortKey], vB = b[sortKey];
-            if (typeof vA === 'string') return sortAsc ? vA.localeCompare(vB) : vB.localeCompare(vA);
-            return sortAsc ? vA - vB : vB - vA;
+            return sortAsc ? (vA > vB ? 1 : -1) : (vA < vB ? 1 : -1);
         });
-
+        
         document.getElementById('w-body').innerHTML = workers.map(w => `
             <tr>
-                <td><b>${w.name}</b></td>
+                <td><strong>${w.name}</strong></td>
                 <td>${w.h300.toFixed(2)} TH/s</td>
                 <td>${w.h10800.toFixed(2)} TH/s</td>
-                <td><span class="status" style="color:${w.online ? 'var(--ok)' : 'var(--err)'}">${w.online ? '● Online' : '○ Offline'}</span></td>
+                <td>
+                    <span class="status-dot" style="background-color: ${w.online ? 'var(--ok)' : 'var(--err)'}"></span>
+                    ${w.online ? 'Active' : 'Inactive'}
+                </td>
             </tr>
         `).join('');
     }
 
+    // Initial Execution
+    initChart();
     update();
-    setInterval(update, 300000); 
+    setInterval(update, 300000); // Refresh every 5 minutes
 </script>
 </body>
 </html>
-
