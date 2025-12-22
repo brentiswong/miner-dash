@@ -1,1 +1,0 @@
-/ocean-api/* https://api.ocean.xyz/v0/:splat  200!
