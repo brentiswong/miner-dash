@@ -25,9 +25,9 @@
     <div id="error-bar" style="color:var(--err); margin-bottom:15px; font-size:0.9rem;"></div>
 
     <div class="grid">
-        <div class="card"><div>Total Hashrate</div><div class="value" id="t_hr">...</div></div>
-        <div class="card"><div>Unpaid Balance</div><div class="value" id="t_unpaid">...</div></div>
-        <div class="card"><div>Est. Next Payout</div><div class="value" id="t_est">...</div></div>
+        <div class="card"><div>Total Hashrate</div><div class="value" id="t_hr">Loading...</div></div>
+        <div class="card"><div>Unpaid Balance</div><div class="value" id="t_unpaid">Loading...</div></div>
+        <div class="card"><div>Est. Next Payout</div><div class="value" id="t_est">Loading...</div></div>
     </div>
 
     <div class="table-container">
@@ -41,17 +41,17 @@
                 </tr>
             </thead>
             <tbody id="w-body">
-                <tr><td colspan="4" style="text-align:center; padding:40px;">Fetching live data...</td></tr>
+                <tr><td colspan="4" style="text-align:center; padding:40px;">Connecting to Ocean...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
 
 <script>
-    // Injected by Netlify
+    // 1. GET WALLET (Injected by Netlify)
     const WALLET = window.WALLET_ADDRESS;
     
-    // PUBLIC PROXY: This skips the need for a _redirects file entirely
+    // 2. PUBLIC PROXY (Fixes the blank screen issue)
     const PROXY_URL = 'https://api.allorigins.win/raw?url=';
     const OCEAN_API = 'https://api.ocean.xyz/v1';
 
@@ -61,12 +61,12 @@
 
     async function update() {
         if (!WALLET) {
-            document.getElementById('error-bar').innerText = "Error: Wallet not found in Netlify Snippets.";
+            document.getElementById('error-bar').innerText = "Error: Wallet not injected via Netlify Snippets.";
             return;
         }
 
         try {
-            // We encode the Ocean URL and pass it through the public proxy
+            // Encode the URLs to pass them through the AllOrigins proxy
             const hrUrl = PROXY_URL + encodeURIComponent(`${OCEAN_API}/user_hashrate_full/${WALLET}`);
             const snUrl = PROXY_URL + encodeURIComponent(`${OCEAN_API}/statsnap/${WALLET}`);
 
@@ -75,12 +75,12 @@
             const hrData = await hrRes.json();
             const snData = await snRes.json();
 
-            // 1. Update Header Stats
+            // UPDATE STATS
             const stats = snData.result || snData;
             document.getElementById('t_unpaid').innerText = (stats.unpaid || 0).toLocaleString() + ' sats';
             document.getElementById('t_est').innerText = (stats.estimated_payout_next_block || 0).toLocaleString() + ' sats';
 
-            // 2. Process Workers
+            // PROCESS WORKERS
             const wObj = hrData.result?.workers || {};
             let totalHr = 0;
             workers = Object.keys(wObj).map(name => {
@@ -96,7 +96,7 @@
             });
 
             document.getElementById('t_hr').innerText = totalHr.toFixed(2) + ' TH/s';
-            document.getElementById('error-bar').innerText = ""; // Clear errors
+            document.getElementById('error-bar').innerText = ""; 
             render();
         } catch (e) {
             console.error(e);
@@ -111,21 +111,18 @@
     }
 
     function render() {
-        // Update Sort Arrows
         const keys = ['name', 'h300', 'h10800', 'online'];
         keys.forEach((k, i) => {
             const el = document.getElementById('s' + i);
             if (el) el.innerText = (k === sortKey) ? (sortAsc ? '↑' : '↓') : '↕';
         });
 
-        // Sort Data
         workers.sort((a, b) => {
             let vA = a[sortKey], vB = b[sortKey];
             if (typeof vA === 'string') return sortAsc ? vA.localeCompare(vB) : vB.localeCompare(vA);
             return sortAsc ? vA - vB : vB - vA;
         });
 
-        // Update Table
         document.getElementById('w-body').innerHTML = workers.map(w => `
             <tr>
                 <td><b>${w.name}</b></td>
@@ -137,7 +134,7 @@
     }
 
     update();
-    setInterval(update, 300000); // 5 minute refresh
+    setInterval(update, 300000); 
 </script>
 </body>
 </html>
