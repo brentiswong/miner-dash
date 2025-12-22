@@ -2,89 +2,102 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Private Ocean Miner Dashboard</title>
+    <title>Ocean Miner Dashboard (Private)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; }
-        .container { max-width: 1200px; margin: auto; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
+        .container { max-width: 1000px; margin: auto; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin-bottom: 25px; }
         .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; }
+        .card h3 { font-size: 0.7rem; color: #8b949e; text-transform: uppercase; margin: 0 0 10px 0; }
         .value { font-size: 1.8rem; font-weight: bold; color: white; }
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 12px; background: #1c2128; cursor: pointer; }
-        td { padding: 12px; border-bottom: 1px solid var(--border); }
+        th { text-align: left; padding: 12px; background: #1c2128; cursor: pointer; font-size: 0.8rem; user-select: none; }
+        th:hover { color: var(--accent); }
+        td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+        .status-dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
     </style>
 </head>
 <body>
+
 <div class="container">
-    <div id="auth-check" style="color:red; margin-bottom:10px;"></div>
+    <div id="error-display" style="color:var(--err); margin-bottom:10px; font-size:0.8rem;"></div>
+    
     <div class="grid">
-        <div class="card"><div>Total Hashrate</div><div class="value" id="t_hr">...</div></div>
-        <div class="card"><div>Unpaid Balance</div><div class="value" id="t_unpaid">...</div></div>
-        <div class="card"><div>Est. Next Payout</div><div class="value" id="t_est">...</div></div>
+        <div class="card"><h3>Total Hashrate</h3><div class="value" id="t_hr">0.00 <small style="font-size:1rem">TH/s</small></div></div>
+        <div class="card"><h3>Unpaid Balance</h3><div class="value" id="t_unpaid">0 <small style="font-size:1rem">sats</small></div></div>
+        <div class="card"><h3>Est. Next Payout</h3><div class="value" id="t_est">0 <small style="font-size:1rem">sats</small></div></div>
     </div>
+
     <div class="table-container">
         <table>
             <thead>
                 <tr>
-                    <th onclick="doSort('name')">Worker ↕</th>
-                    <th onclick="doSort('h300')">5m ↕</th>
-                    <th onclick="doSort('h10800')">3h ↕</th>
-                    <th onclick="doSort('online')">Status ↕</th>
+                    <th onclick="doSort('name')">Worker <span id="s0">↕</span></th>
+                    <th onclick="doSort('h300')">5m <span id="s1">↕</span></th>
+                    <th onclick="doSort('h10800')">3h <span id="s2">↕</span></th>
+                    <th onclick="doSort('online')">Status <span id="s3">↕</span></th>
                 </tr>
             </thead>
-            <tbody id="w-body"></tbody>
+            <tbody id="w-body">
+                <tr><td colspan="4" style="text-align:center; padding:40px;">Loading data from Ocean...</td></tr>
+            </tbody>
         </table>
     </div>
 </div>
 
 <script>
-    // SECURE WALLET LOADING
-    const WALLET = window.WALLET_ADDRESS;
-    const PROXY = '/ocean-api';
+    // Injected by Netlify Snippets
+    const WALLET = window.WALLET_ADDRESS || 'bc1q76zgkz5ussy2hl54vdz7nv0q96kta82ckdu7ys';
     
-    if (!WALLET) {
-        document.getElementById('auth-check').innerText = "Security Error: Wallet not injected. Check Netlify Snippets.";
-    }
+    // Using a Public CORS Proxy to bypass redirect/404 issues
+    const PROXY_URL = 'https://api.allorigins.win/raw?url=';
+    const OCEAN_API = 'https://api.ocean.xyz/v1';
 
     let workers = [];
     let sortKey = 'h300';
     let sortAsc = false;
 
     async function update() {
-        if (!WALLET) return;
+        const errorDiv = document.getElementById('error-display');
         try {
-            const [hrRes, snRes] = await Promise.all([
-                fetch(`${PROXY}/user_hashrate_full/${WALLET}`),
-                fetch(`${PROXY}/statsnap/${WALLET}`)
-            ]);
+            const hrUrl = `${PROXY_URL}${encodeURIComponent(OCEAN_API + '/user_hashrate_full/' + WALLET)}`;
+            const snUrl = `${PROXY_URL}${encodeURIComponent(OCEAN_API + '/statsnap/' + WALLET)}`;
+
+            const [hrRes, snRes] = await Promise.all([ fetch(hrUrl), fetch(snUrl) ]);
 
             const hrData = await hrRes.json();
             const snData = await snRes.json();
 
+            // Handle Statsnap
             const stats = snData.result || snData;
-            document.getElementById('t_unpaid').innerText = (stats.unpaid || 0).toLocaleString() + ' sats';
-            document.getElementById('t_est').innerText = (stats.estimated_payout_next_block || 0).toLocaleString() + ' sats';
+            document.getElementById('t_unpaid').innerHTML = `${(stats.unpaid || 0).toLocaleString()} <small style="font-size:1rem">sats</small>`;
+            document.getElementById('t_est').innerHTML = `${(stats.estimated_payout_next_block || 0).toLocaleString()} <small style="font-size:1rem">sats</small>`;
 
+            // Handle Workers
             const wObj = hrData.result?.workers || {};
-            let total = 0;
+            let totalHr = 0;
             workers = Object.keys(wObj).map(name => {
                 const s = wObj[name][0];
                 const h5m = (s.hashrate_300s || 0) / 1e12;
-                total += h5m;
+                totalHr += h5m;
                 return {
-                    name, 
-                    h300: h5m, 
+                    name: name,
+                    h300: h5m,
                     h10800: (s.hashrate_10800s || 0) / 1e12,
                     online: h5m > 0
                 };
             });
 
-            document.getElementById('t_hr').innerText = total.toFixed(2) + ' TH/s';
+            document.getElementById('t_hr').innerHTML = `${totalHr.toFixed(2)} <small style="font-size:1rem">TH/s</small>`;
+            errorDiv.innerText = "";
             render();
-        } catch (e) { console.error("Update failed", e); }
+        } catch (e) {
+            console.error(e);
+            errorDiv.innerText = "Fetch Error: " + e.message + ". Retrying in 5m...";
+        }
     }
 
     function doSort(key) {
@@ -94,22 +107,34 @@
     }
 
     function render() {
+        const keys = ['name', 'h300', 'h10800', 'online'];
+        const idx = keys.indexOf(sortKey);
+        
+        // Update Arrows
+        for(let i=0; i<4; i++) document.getElementById('s'+i).innerText = '↕';
+        document.getElementById('s'+idx).innerText = sortAsc ? '↑' : '↓';
+
         workers.sort((a, b) => {
             let vA = a[sortKey], vB = b[sortKey];
-            return sortAsc ? (vA > vB ? 1 : -1) : (vA < vB ? 1 : -1);
+            if (typeof vA === 'string') return sortAsc ? vA.localeCompare(vB) : vB.localeCompare(vA);
+            return sortAsc ? vA - vB : vB - vA;
         });
+
         document.getElementById('w-body').innerHTML = workers.map(w => `
             <tr>
                 <td><b>${w.name}</b></td>
-                <td>${w.h300.toFixed(2)}</td>
-                <td>${w.h10800.toFixed(2)}</td>
-                <td><span style="color:${w.online ? 'var(--ok)':'var(--err)'}">${w.online?'●':'○'}</span></td>
+                <td>${w.h300.toFixed(2)} TH/s</td>
+                <td>${w.h10800.toFixed(2)} TH/s</td>
+                <td>
+                    <span class="status-dot" style="background:${w.online ? 'var(--ok)' : 'var(--err)'}"></span>
+                    ${w.online ? 'Online' : 'Offline'}
+                </td>
             </tr>
         `).join('');
     }
 
     update();
-    setInterval(update, 300000);
+    setInterval(update, 300000); // 5 Minutes
 </script>
 </body>
 </html>
