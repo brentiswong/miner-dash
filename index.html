@@ -31,28 +31,28 @@
             <thead>
                 <tr>
                     <th onclick="doSort('name')">Worker <span id="s0">↕</span></th>
-                    <th onclick="doSort('h300')">5m <span id="s1">↕</span></th>
-                    <th onclick="doSort('h10800')">3h <span id="s2">↕</span></th>
-                    <th onclick="doSort('online')">Status <span id="s3">↕</span></th>
+                    <th onclick="onSort('h300')">5m <span id="s1">↕</span></th>
+                    <th onclick="onSort('h10800')">3h <span id="s2">↕</span></th>
+                    <th onclick="onSort('online')">Status <span id="s3">↕</span></th>
                 </tr>
             </thead>
             <tbody id="w-body">
-                <tr><td colspan="4" style="text-align:center; padding:30px;">Connecting to Ocean API via Proxy...</td></tr>
+                <tr><td colspan="4" style="text-align:center; padding:30px;">Loading data from Ocean...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
 
 <script>
-    // Injected by Netlify
+    // Injected by Netlify Snippets
     const WALLET = window.WALLET_ADDRESS;
     
-    // BYPASS REDIRECTS: Using AllOrigins public proxy to solve the 404/CORS issues
-    const PROXY_BASE = 'https://api.allorigins.win/raw?url=';
-    const OCEAN_URL = 'https://api.ocean.xyz/v1';
+    // We use AllOrigins to bypass Netlify's broken _redirects file
+    const PROXY_URL = 'https://api.allorigins.win/raw?url=';
+    const OCEAN_API = 'https://api.ocean.xyz/v1';
 
     if (!WALLET) {
-        document.getElementById('auth-check').innerText = "Security Error: Wallet not injected by Netlify.";
+        document.getElementById('auth-check').innerText = "Security Error: Wallet Address not found. Please check Netlify Snippet Injection.";
     }
 
     let workers = [];
@@ -62,19 +62,21 @@
     async function update() {
         if (!WALLET) return;
         try {
-            // Constructing the full URL through the public proxy
-            const hrUrl = PROXY_BASE + encodeURIComponent(`${OCEAN_URL}/user_hashrate_full/${WALLET}`);
-            const snUrl = PROXY_BASE + encodeURIComponent(`${OCEAN_URL}/statsnap/${WALLET}`);
+            // Fetch both endpoints through the reliable proxy
+            const hrUrl = PROXY_URL + encodeURIComponent(`${OCEAN_API}/user_hashrate_full/${WALLET}`);
+            const snUrl = PROXY_URL + encodeURIComponent(`${OCEAN_API}/statsnap/${WALLET}`);
 
             const [hrRes, snRes] = await Promise.all([ fetch(hrUrl), fetch(snUrl) ]);
-
+            
             const hrData = await hrRes.json();
             const snData = await snRes.json();
 
+            // Update stats
             const stats = snData.result || snData;
             document.getElementById('t_unpaid').innerText = (stats.unpaid || 0).toLocaleString() + ' sats';
             document.getElementById('t_est').innerText = (stats.estimated_payout_next_block || 0).toLocaleString() + ' sats';
 
+            // Process workers
             const wObj = hrData.result?.workers || {};
             let total = 0;
             workers = Object.keys(wObj).map(name => {
@@ -90,15 +92,15 @@
             });
 
             document.getElementById('t_hr').innerText = total.toFixed(2) + ' TH/s';
-            document.getElementById('auth-check').innerText = ""; // Clear errors
+            document.getElementById('auth-check').innerText = ""; 
             render();
         } catch (e) { 
-            console.error("Update failed", e); 
-            document.getElementById('auth-check').innerText = "API Connection Error. Will retry in 5 mins.";
+            console.error("Update failed", e);
+            document.getElementById('auth-check').innerText = "Connection Error: Failed to fetch data from Ocean.";
         }
     }
 
-    function doSort(key) {
+    function onSort(key) {
         if (sortKey === key) sortAsc = !sortAsc;
         else { sortKey = key; sortAsc = false; }
         render();
@@ -109,8 +111,12 @@
         const idx = keys.indexOf(sortKey);
         
         // Update sorting arrows
-        for(let i=0; i<4; i++) document.getElementById('s'+i).innerText = '↕';
-        document.getElementById('s'+idx).innerText = sortAsc ? '↑' : '↓';
+        for(let i=0; i<4; i++) {
+            const el = document.getElementById('s'+i);
+            if(el) el.innerText = '↕';
+        }
+        const activeArrow = document.getElementById('s'+idx);
+        if(activeArrow) activeArrow.innerText = sortAsc ? '↑' : '↓';
 
         workers.sort((a, b) => {
             let vA = a[sortKey], vB = b[sortKey];
@@ -121,15 +127,15 @@
         document.getElementById('w-body').innerHTML = workers.map(w => `
             <tr>
                 <td><b>${w.name}</b></td>
-                <td>${w.h300.toFixed(2)}</td>
-                <td>${w.h10800.toFixed(2)}</td>
+                <td>${w.h300.toFixed(2)} TH/s</td>
+                <td>${w.h10800.toFixed(2)} TH/s</td>
                 <td><span style="color:${w.online ? 'var(--ok)':'var(--err)'}">${w.online?'● Online':'○ Offline'}</span></td>
             </tr>
         `).join('');
     }
 
     update();
-    setInterval(update, 300000); // 5 minutes
+    setInterval(update, 300000); // 5 min refresh
 </script>
 </body>
 </html>
