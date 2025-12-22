@@ -2,35 +2,30 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Ocean Miner Dashboard (Private)</title>
+    <title>Private Ocean Miner Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
-        .container { max-width: 1000px; margin: auto; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; }
+        .container { max-width: 1200px; margin: auto; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px; }
         .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; }
-        .card h3 { font-size: 0.7rem; color: #8b949e; text-transform: uppercase; margin: 0 0 10px 0; }
         .value { font-size: 1.8rem; font-weight: bold; color: white; }
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 12px; background: #1c2128; cursor: pointer; font-size: 0.8rem; user-select: none; }
+        th { text-align: left; padding: 12px; background: #1c2128; cursor: pointer; user-select: none; }
         th:hover { color: var(--accent); }
-        td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
-        .status-dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        td { padding: 12px; border-bottom: 1px solid var(--border); }
     </style>
 </head>
 <body>
-
 <div class="container">
-    <div id="error-display" style="color:var(--err); margin-bottom:10px; font-size:0.8rem;"></div>
-    
+    <div id="auth-check" style="color:var(--err); margin-bottom:10px; font-size: 0.8rem;"></div>
     <div class="grid">
-        <div class="card"><h3>Total Hashrate</h3><div class="value" id="t_hr">0.00 <small style="font-size:1rem">TH/s</small></div></div>
-        <div class="card"><h3>Unpaid Balance</h3><div class="value" id="t_unpaid">0 <small style="font-size:1rem">sats</small></div></div>
-        <div class="card"><h3>Est. Next Payout</h3><div class="value" id="t_est">0 <small style="font-size:1rem">sats</small></div></div>
+        <div class="card"><div>Total Hashrate</div><div class="value" id="t_hr">...</div></div>
+        <div class="card"><div>Unpaid Balance</div><div class="value" id="t_unpaid">...</div></div>
+        <div class="card"><div>Est. Next Payout</div><div class="value" id="t_est">...</div></div>
     </div>
-
     <div class="table-container">
         <table>
             <thead>
@@ -42,61 +37,64 @@
                 </tr>
             </thead>
             <tbody id="w-body">
-                <tr><td colspan="4" style="text-align:center; padding:40px;">Loading data from Ocean...</td></tr>
+                <tr><td colspan="4" style="text-align:center; padding:30px;">Connecting to Ocean API via Proxy...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
 
 <script>
-    // Injected by Netlify Snippets
-    const WALLET = window.WALLET_ADDRESS || 'bc1q76zgkz5ussy2hl54vdz7nv0q96kta82ckdu7ys';
+    // Injected by Netlify
+    const WALLET = window.WALLET_ADDRESS;
     
-    // Using a Public CORS Proxy to bypass redirect/404 issues
-    const PROXY_URL = 'https://api.allorigins.win/raw?url=';
-    const OCEAN_API = 'https://api.ocean.xyz/v1';
+    // BYPASS REDIRECTS: Using AllOrigins public proxy to solve the 404/CORS issues
+    const PROXY_BASE = 'https://api.allorigins.win/raw?url=';
+    const OCEAN_URL = 'https://api.ocean.xyz/v1';
+
+    if (!WALLET) {
+        document.getElementById('auth-check').innerText = "Security Error: Wallet not injected by Netlify.";
+    }
 
     let workers = [];
     let sortKey = 'h300';
     let sortAsc = false;
 
     async function update() {
-        const errorDiv = document.getElementById('error-display');
+        if (!WALLET) return;
         try {
-            const hrUrl = `${PROXY_URL}${encodeURIComponent(OCEAN_API + '/user_hashrate_full/' + WALLET)}`;
-            const snUrl = `${PROXY_URL}${encodeURIComponent(OCEAN_API + '/statsnap/' + WALLET)}`;
+            // Constructing the full URL through the public proxy
+            const hrUrl = PROXY_BASE + encodeURIComponent(`${OCEAN_URL}/user_hashrate_full/${WALLET}`);
+            const snUrl = PROXY_BASE + encodeURIComponent(`${OCEAN_URL}/statsnap/${WALLET}`);
 
             const [hrRes, snRes] = await Promise.all([ fetch(hrUrl), fetch(snUrl) ]);
 
             const hrData = await hrRes.json();
             const snData = await snRes.json();
 
-            // Handle Statsnap
             const stats = snData.result || snData;
-            document.getElementById('t_unpaid').innerHTML = `${(stats.unpaid || 0).toLocaleString()} <small style="font-size:1rem">sats</small>`;
-            document.getElementById('t_est').innerHTML = `${(stats.estimated_payout_next_block || 0).toLocaleString()} <small style="font-size:1rem">sats</small>`;
+            document.getElementById('t_unpaid').innerText = (stats.unpaid || 0).toLocaleString() + ' sats';
+            document.getElementById('t_est').innerText = (stats.estimated_payout_next_block || 0).toLocaleString() + ' sats';
 
-            // Handle Workers
             const wObj = hrData.result?.workers || {};
-            let totalHr = 0;
+            let total = 0;
             workers = Object.keys(wObj).map(name => {
                 const s = wObj[name][0];
                 const h5m = (s.hashrate_300s || 0) / 1e12;
-                totalHr += h5m;
+                total += h5m;
                 return {
-                    name: name,
-                    h300: h5m,
+                    name, 
+                    h300: h5m, 
                     h10800: (s.hashrate_10800s || 0) / 1e12,
                     online: h5m > 0
                 };
             });
 
-            document.getElementById('t_hr').innerHTML = `${totalHr.toFixed(2)} <small style="font-size:1rem">TH/s</small>`;
-            errorDiv.innerText = "";
+            document.getElementById('t_hr').innerText = total.toFixed(2) + ' TH/s';
+            document.getElementById('auth-check').innerText = ""; // Clear errors
             render();
-        } catch (e) {
-            console.error(e);
-            errorDiv.innerText = "Fetch Error: " + e.message + ". Retrying in 5m...";
+        } catch (e) { 
+            console.error("Update failed", e); 
+            document.getElementById('auth-check').innerText = "API Connection Error. Will retry in 5 mins.";
         }
     }
 
@@ -110,7 +108,7 @@
         const keys = ['name', 'h300', 'h10800', 'online'];
         const idx = keys.indexOf(sortKey);
         
-        // Update Arrows
+        // Update sorting arrows
         for(let i=0; i<4; i++) document.getElementById('s'+i).innerText = '↕';
         document.getElementById('s'+idx).innerText = sortAsc ? '↑' : '↓';
 
@@ -123,18 +121,15 @@
         document.getElementById('w-body').innerHTML = workers.map(w => `
             <tr>
                 <td><b>${w.name}</b></td>
-                <td>${w.h300.toFixed(2)} TH/s</td>
-                <td>${w.h10800.toFixed(2)} TH/s</td>
-                <td>
-                    <span class="status-dot" style="background:${w.online ? 'var(--ok)' : 'var(--err)'}"></span>
-                    ${w.online ? 'Online' : 'Offline'}
-                </td>
+                <td>${w.h300.toFixed(2)}</td>
+                <td>${w.h10800.toFixed(2)}</td>
+                <td><span style="color:${w.online ? 'var(--ok)':'var(--err)'}">${w.online?'● Online':'○ Offline'}</span></td>
             </tr>
         `).join('');
     }
 
     update();
-    setInterval(update, 300000); // 5 Minutes
+    setInterval(update, 300000); // 5 minutes
 </script>
 </body>
 </html>
