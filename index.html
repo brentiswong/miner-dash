@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Private Ocean Miner Dashboard</title>
+    <title>Ocean Miner Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; }
-        .container { max-width: 1200px; margin: auto; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .container { max-width: 1000px; margin: auto; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin-bottom: 25px; }
         .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; }
         .value { font-size: 1.8rem; font-weight: bold; color: white; }
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
@@ -16,16 +16,20 @@
         th { text-align: left; padding: 12px; background: #1c2128; cursor: pointer; user-select: none; }
         th:hover { color: var(--accent); }
         td { padding: 12px; border-bottom: 1px solid var(--border); }
+        .status { font-weight: bold; }
     </style>
 </head>
 <body>
+
 <div class="container">
-    <div id="auth-check" style="color:var(--err); margin-bottom:10px; font-size: 0.8rem;"></div>
+    <div id="error-bar" style="color:var(--err); margin-bottom:15px; font-size:0.9rem;"></div>
+
     <div class="grid">
         <div class="card"><div>Total Hashrate</div><div class="value" id="t_hr">...</div></div>
         <div class="card"><div>Unpaid Balance</div><div class="value" id="t_unpaid">...</div></div>
         <div class="card"><div>Est. Next Payout</div><div class="value" id="t_est">...</div></div>
     </div>
+
     <div class="table-container">
         <table>
             <thead>
@@ -37,64 +41,66 @@
                 </tr>
             </thead>
             <tbody id="w-body">
-                <tr><td colspan="4" style="text-align:center; padding:30px;">Connecting to Ocean API...</td></tr>
+                <tr><td colspan="4" style="text-align:center; padding:40px;">Fetching live data...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
 
 <script>
-    // SECURE WALLET LOADING (from Netlify Snippet)
+    // Injected by Netlify
     const WALLET = window.WALLET_ADDRESS;
     
-    // PUBLIC CORS PROXY - Solves the 404/CORS issues without needing _redirects
-    const PROXY_BASE = 'https://api.allorigins.win/raw?url=';
-    const OCEAN_URL = 'https://api.ocean.xyz/v1';
-
-    if (!WALLET) {
-        document.getElementById('auth-check').innerText = "Security Error: Wallet not injected. Check Netlify Snippets.";
-    }
+    // PUBLIC PROXY: This skips the need for a _redirects file entirely
+    const PROXY_URL = 'https://api.allorigins.win/raw?url=';
+    const OCEAN_API = 'https://api.ocean.xyz/v1';
 
     let workers = [];
     let sortKey = 'h300';
     let sortAsc = false;
 
     async function update() {
-        if (!WALLET) return;
+        if (!WALLET) {
+            document.getElementById('error-bar').innerText = "Error: Wallet not found in Netlify Snippets.";
+            return;
+        }
+
         try {
-            // Encode the URLs to pass them through the proxy
-            const hrUrl = PROXY_BASE + encodeURIComponent(`${OCEAN_URL}/user_hashrate_full/${WALLET}`);
-            const snUrl = PROXY_BASE + encodeURIComponent(`${OCEAN_URL}/statsnap/${WALLET}`);
+            // We encode the Ocean URL and pass it through the public proxy
+            const hrUrl = PROXY_URL + encodeURIComponent(`${OCEAN_API}/user_hashrate_full/${WALLET}`);
+            const snUrl = PROXY_URL + encodeURIComponent(`${OCEAN_API}/statsnap/${WALLET}`);
 
             const [hrRes, snRes] = await Promise.all([ fetch(hrUrl), fetch(snUrl) ]);
-
+            
             const hrData = await hrRes.json();
             const snData = await snRes.json();
 
+            // 1. Update Header Stats
             const stats = snData.result || snData;
             document.getElementById('t_unpaid').innerText = (stats.unpaid || 0).toLocaleString() + ' sats';
             document.getElementById('t_est').innerText = (stats.estimated_payout_next_block || 0).toLocaleString() + ' sats';
 
+            // 2. Process Workers
             const wObj = hrData.result?.workers || {};
-            let total = 0;
+            let totalHr = 0;
             workers = Object.keys(wObj).map(name => {
                 const s = wObj[name][0];
-                const h5m = (s.hashrate_300s || 0) / 1e12;
-                total += h5m;
+                const h5m = (s.hashrate_300s || 0) / 1e12; // Convert to TH/s
+                totalHr += h5m;
                 return {
-                    name, 
-                    h300: h5m, 
+                    name: name,
+                    h300: h5m,
                     h10800: (s.hashrate_10800s || 0) / 1e12,
                     online: h5m > 0
                 };
             });
 
-            document.getElementById('t_hr').innerText = total.toFixed(2) + ' TH/s';
-            document.getElementById('auth-check').innerText = ""; 
+            document.getElementById('t_hr').innerText = totalHr.toFixed(2) + ' TH/s';
+            document.getElementById('error-bar').innerText = ""; // Clear errors
             render();
-        } catch (e) { 
-            console.error("Update failed", e); 
-            document.getElementById('auth-check').innerText = "API Error. Check wallet or proxy status.";
+        } catch (e) {
+            console.error(e);
+            document.getElementById('error-bar').innerText = "Connection lost. Retrying in 5 minutes...";
         }
     }
 
@@ -105,28 +111,33 @@
     }
 
     function render() {
-        // Update arrows
+        // Update Sort Arrows
         const keys = ['name', 'h300', 'h10800', 'online'];
-        keys.forEach((k, i) => document.getElementById('s' + i).innerText = (k === sortKey) ? (sortAsc ? '↑' : '↓') : '↕');
+        keys.forEach((k, i) => {
+            const el = document.getElementById('s' + i);
+            if (el) el.innerText = (k === sortKey) ? (sortAsc ? '↑' : '↓') : '↕';
+        });
 
+        // Sort Data
         workers.sort((a, b) => {
             let vA = a[sortKey], vB = b[sortKey];
             if (typeof vA === 'string') return sortAsc ? vA.localeCompare(vB) : vB.localeCompare(vA);
-            return sortAsc ? (vA > vB ? 1 : -1) : (vA < vB ? 1 : -1);
+            return sortAsc ? vA - vB : vB - vA;
         });
 
+        // Update Table
         document.getElementById('w-body').innerHTML = workers.map(w => `
             <tr>
                 <td><b>${w.name}</b></td>
                 <td>${w.h300.toFixed(2)} TH/s</td>
                 <td>${w.h10800.toFixed(2)} TH/s</td>
-                <td><span style="color:${w.online ? 'var(--ok)':'var(--err)'}">${w.online?'● Online':'○ Offline'}</span></td>
+                <td><span class="status" style="color:${w.online ? 'var(--ok)' : 'var(--err)'}">${w.online ? '● Online' : '○ Offline'}</span></td>
             </tr>
         `).join('');
     }
 
     update();
-    setInterval(update, 300000);
+    setInterval(update, 300000); // 5 minute refresh
 </script>
 </body>
 </html>
