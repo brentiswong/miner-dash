@@ -2,52 +2,45 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NGU TECH - Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NGU TECH</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --dead: #f85149; }
-        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 10px; margin: 0; }
         .container { max-width: 1200px; margin: auto; }
-        .pool-status { background: #1c2128; border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; flex-wrap: wrap; }
-        .pool-label { color: #8b949e; text-transform: uppercase; font-size: 0.65rem; font-weight: 700; margin-right: 5px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; }
-        .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; font-family: monospace; }
-        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        @media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
-        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 320px; position: relative; }
-        table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; margin-top: 20px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; }
-        th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; }
-        td { padding: 12px; border-bottom: 1px solid var(--border); }
-        #status-bar { font-size: 0.7rem; color: var(--accent); margin-bottom: 10px; font-weight: bold; }
+        .pool-status { background: #1c2128; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; flex-wrap: wrap; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 15px; }
+        .card { background: var(--card); border: 1px solid var(--border); padding: 15px; border-radius: 8px; }
+        .value { font-size: 1.3rem; font-weight: 800; color: white; font-family: monospace; }
+        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px; height: 300px; margin-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.75rem; background: var(--card); }
+        th { text-align: left; padding: 8px; background: #1c2128; color: #8b949e; }
+        td { padding: 8px; border-bottom: 1px solid var(--border); }
+        #status-bar { font-size: 0.65rem; color: var(--accent); margin-bottom: 5px; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div id="status-bar">CONNECTING...</div>
-    
     <div class="pool-status">
-        <div><span class="pool-label">Pool:</span> <span id="p-hr-global">...</span></div>
-        <div><span class="pool-label">Block:</span> <span id="p-height">...</span></div>
-        <div><span class="pool-label">Finder:</span> <span id="p-finder">...</span></div>
-        <div id="p-time" style="color:#8b949e; font-weight:bold;">Calculating...</div>
+        <div><span style="color:#8b949e">EH/s:</span> <span id="p-hr-global">...</span></div>
+        <div><span style="color:#8b949e">BLOCK:</span> <span id="p-height">...</span></div>
+        <div><span style="color:#8b949e">FINDER:</span> <span id="p-finder">...</span></div>
+        <div id="p-time" style="color:var(--accent); font-weight:bold;">---</div>
     </div>
 
     <div class="grid">
-        <div class="card"><div class="pool-label">USER HR (5M)</div><div id="t_hr" class="value">...</div></div>
-        <div class="card"><div class="pool-label">EST NEXT BLOCK</div><div id="t_est" class="value" style="color:var(--accent)">...</div></div>
-        <div class="card"><div class="pool-label">UNPAID BALANCE</div><div id="t_unpaid" class="value" style="color:var(--ok)">...</div></div>
+        <div class="card"><div style="font-size:0.6rem">USER PH/s</div><div id="t_hr" class="value">...</div></div>
+        <div class="card"><div style="font-size:0.6rem">EST NEXT</div><div id="t_est" class="value" style="color:var(--accent)">...</div></div>
+        <div class="card"><div style="font-size:0.6rem">UNPAID BTC</div><div id="t_unpaid" class="value" style="color:var(--ok)">...</div></div>
     </div>
 
-    <div class="chart-grid">
-        <div class="chart-box"><canvas id="histChart"></canvas></div>
-        <div class="chart-box"><canvas id="liveChart"></canvas></div>
-    </div>
+    <div class="chart-box"><canvas id="liveChart"></canvas></div>
 
     <table>
-        <thead><tr><th>Worker</th><th>5m</th><th>3h</th><th>24h</th><th>Status</th></tr></thead>
+        <thead><tr><th>Worker</th><th>5m</th><th>24h</th><th>Status</th></tr></thead>
         <tbody id="worker-table"></tbody>
     </table>
 </div>
@@ -55,7 +48,7 @@
 <script>
     const WALLET = "bc1q76zgkz5ussy2hl54vdz7nv0q96kta82ckdu7ys";
     const PROXY = 'https://api.allorigins.win/raw?url=';
-    let histChart, liveChart, fullHistData = [];
+    let liveChart;
 
     function setText(id, text) {
         const el = document.getElementById(id);
@@ -76,41 +69,42 @@
             const p = await pRes.json();
             const ph = await phRes.json();
 
-            // Core Metrics
-            setText('t_hr', (parseFloat(hr.result?.total_300s || 0)/1e15).toFixed(2) + " PH/s");
-            setText('t_unpaid', parseFloat(u.result?.unpaid || 0).toFixed(8) + " BTC");
-            setText('t_est', parseFloat(u.result?.estimated_earn_next_block || 0).toFixed(8) + " BTC");
-            setText('p-hr-global', (parseFloat(ph.result?.pool_300s || 0)/1e18).toFixed(2) + " EH/s");
+            setText('t_hr', (parseFloat(hr.result?.total_300s || 0)/1e15).toFixed(2));
+            setText('t_unpaid', parseFloat(u.result?.unpaid || 0).toFixed(8));
+            setText('t_est', parseFloat(u.result?.estimated_earn_next_block || 0).toFixed(8));
+            setText('p-hr-global', (parseFloat(ph.result?.pool_300s || 0)/1e18).toFixed(2));
 
-            // Block Info
             const block = p.result?.blocks[0] || {};
-            setText('p-height', "#" + (block.height || "---"));
-            setText('p-finder', block.username ? (block.username.substring(0,8)) : "---");
+            setText('p-height', block.height || "---");
+            setText('p-finder', block.username ? block.username.substring(0,8) : "---");
 
-            // --- THE FINAL TIME FIX ---
+            // --- MANUAL TIME MATH (iPad Safe) ---
             if (block.ts) {
-                // Remove milliseconds/microseconds completely to avoid parsing errors
-                // Transforms "2025-12-22T17:17:23.098500" -> "2025-12-22T17:17:23"
-                const baseTs = block.ts.split('.')[0]; 
-                
-                // Parse as UTC (the Z suffix is key)
-                const blockTime = new Date(baseTs + "Z").getTime();
-                const nowTime = new Date().getTime();
-                
-                const diff = Math.floor((nowTime - blockTime) / 1000);
+                try {
+                    // Extract Date and Time separately from "2025-12-22T17:17:23..."
+                    const parts = block.ts.split('T');
+                    const dateParts = parts[0].split('-');
+                    const timeParts = parts[1].split(':');
+                    
+                    // Construct Date using individual integers (the only 100% safe way for iOS)
+                    const bYear = parseInt(dateParts[0]);
+                    const bMonth = parseInt(dateParts[1]) - 1;
+                    const bDay = parseInt(dateParts[2]);
+                    const bHour = parseInt(timeParts[0]);
+                    const bMin = parseInt(timeParts[1]);
+                    const bSec = parseInt(timeParts[2].split('.')[0]);
 
-                if (isNaN(diff)) {
-                    setText('p-time', "Just now");
-                } else if (diff < 60) {
-                    setText('p-time', diff + "s ago");
-                } else if (diff < 3600) {
-                    setText('p-time', Math.floor(diff/60) + "m ago");
-                } else {
-                    setText('p-time', Math.floor(diff/3600) + "h ago");
-                }
+                    const blockDate = Date.UTC(bYear, bMonth, bDay, bHour, bMin, bSec);
+                    const nowDate = Date.now();
+                    const diff = Math.floor((nowDate - blockDate) / 1000);
+
+                    if (diff < 60) setText('p-time', diff + "s ago");
+                    else if (diff < 3600) setText('p-time', Math.floor(diff/60) + "m ago");
+                    else setText('p-time', Math.floor(diff/3600) + "h ago");
+                } catch(e) { setText('p-time', "Just now"); }
             }
 
-            // Live Chart Update
+            // Chart
             const label = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
             liveChart.data.labels.push(label);
             liveChart.data.datasets[0].data.push((parseFloat(hr.result?.total_300s || 0)/1e15).toFixed(2));
@@ -121,34 +115,19 @@
             const ws = hr.result?.workers || {};
             document.getElementById('worker-table').innerHTML = Object.keys(ws).map(n => {
                 const s = ws[n][0];
-                return `<tr><td>${n}</td><td>${(s.hashrate_300s/1e12).toFixed(2)}</td><td>${(s.hashrate_10800s/1e12).toFixed(2)}</td><td>${(s.hashrate_86400s/1e12).toFixed(2)}</td><td style="color:${s.hashrate_300s > 0 ? 'var(--ok)':'var(--dead)'}">●</td></tr>`;
+                return `<tr><td>${n}</td><td>${(s.hashrate_300s/1e12).toFixed(1)}</td><td>${(s.hashrate_86400s/1e12).toFixed(1)}</td><td style="color:${s.hashrate_300s > 0 ? 'var(--ok)':'var(--dead)'}">●</td></tr>`;
             }).join('');
             
-            setText('status-bar', "ONLINE");
-        } catch(e) { 
-            console.error(e);
-            setText('status-bar', "CONNECTION ERROR");
-        }
+            setText('status-bar', "LIVE");
+        } catch(e) { setText('status-bar', "OFFLINE"); }
     }
 
-    function initCharts() {
-        histChart = new Chart(document.getElementById('histChart'), { type: 'line', data: { labels: [], datasets: [{ label: 'Historical PH/s', data: [], borderColor: '#58a6ff', fill: true, backgroundColor: 'rgba(88,166,255,0.05)', pointRadius: 0 }] }, options: { responsive: true, maintainAspectRatio: false } });
-        liveChart = new Chart(document.getElementById('liveChart'), { type: 'line', data: { labels: [], datasets: [{ label: 'Live PH/s', data: [], borderColor: '#ff7b72', tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false } });
-    }
+    liveChart = new Chart(document.getElementById('liveChart'), { 
+        type: 'line', 
+        data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', tension: 0.4 }] },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
 
-    async function loadHistory() {
-        try {
-            const res = await fetch('history.json');
-            const data = await res.json();
-            const filtered = data.result.report.filter(d => parseFloat(d.hashrate_avg_24hr_thsec) > 0).sort((a,b) => new Date(a.date) - new Date(b.date));
-            histChart.data.labels = filtered.map(d => d.date);
-            histChart.data.datasets[0].data = filtered.map(d => (parseFloat(d.hashrate_avg_24hr_thsec)/1000).toFixed(2));
-            histChart.update();
-        } catch(e) {}
-    }
-
-    initCharts();
-    loadHistory();
     updateLive();
     setInterval(updateLive, 60000);
 </script>
