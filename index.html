@@ -158,13 +158,19 @@
     }
 
     function formatTimeAgo(secondsAgo) {
-        if (secondsAgo < 60) return `${Math.floor(secondsAgo)}s ago`;
-        const minutes = Math.floor(secondsAgo / 60);
-        if (minutes < 60) return `${minutes}m ${Math.floor(secondsAgo % 60)}s ago`;
-        const hours = Math.floor(minutes / 60);
-        if (hours < 24) return `${hours}h ${minutes % 60}m ago`;
-        const days = Math.floor(hours / 24);
-        return `${days}d ${hours % 24}h ago`;
+        secondsAgo = Math.max(0, secondsAgo); 
+        const days = Math.floor(secondsAgo / 86400);
+        const hours = Math.floor((secondsAgo % 86400) / 3600);
+        const minutes = Math.floor((secondsAgo % 3600) / 60);
+        const seconds = Math.floor(secondsAgo % 60);
+
+        let parts = [];
+        if (days > 0) parts.push(`${days}d`);
+        if (hours > 0) parts.push(`${hours}h`);
+        if (minutes > 0) parts.push(`${minutes}m`);
+        if (parts.length < 2) parts.push(`${seconds}s`);
+        
+        return parts.join(' ') + ' ago';
     }
 
     function updateTimeSince() {
@@ -172,8 +178,8 @@
             document.getElementById('p-time').innerText = 'Loading...';
             return;
         }
-        const now = Math.floor(Date.now() / 1000);
-        const ago = now - lastBlockTimestamp;
+        const nowUTC = Math.floor(new Date().getTime() / 1000);
+        const ago = nowUTC - lastBlockTimestamp;
         document.getElementById('p-time').innerText = formatTimeAgo(ago);
     }
 
@@ -215,35 +221,22 @@
             try {
                 const res = await fetch(PROXY + encodeURIComponent(url));
                 const data = await res.json();
-                if (data.result?.report) {
-                    allEarnings.push(...data.result.report);
-                }
+                if (data.result?.report) allEarnings.push(...data.result.report);
             } catch(e) {}
             date.setMonth(date.getMonth() - 1);
         }
-
-        const valid = allEarnings
-            .filter(e => e.Blockheight !== "-1" && parseInt(e.NetUserRwd || 0) > 0);
-
+        const valid = allEarnings.filter(e => e.Blockheight !== "-1" && parseInt(e.NetUserRwd || 0) > 0);
         valid.sort((a, b) => new Date(b.TimeUTC) - new Date(a.TimeUTC));
-
         const recent = valid.slice(0, 10);
-
         const tbody = document.getElementById('earnings-table');
         if (recent.length === 0) {
             tbody.innerHTML = '<tr><td colspan="3" style="text-align:center">No earnings found yet</td></tr>';
             return;
         }
-
         tbody.innerHTML = recent.map(e => {
-            const sats = parseInt(e.NetUserRwd);
-            const btc = (sats / 100000000).toFixed(8);
+            const btc = (parseInt(e.NetUserRwd) / 100000000).toFixed(8);
             const dt = new Date(e.TimeUTC);
-            const month = dt.toLocaleString('en-US', { month: 'short' });
-            const day = dt.getUTCDate();
-            const hour = dt.getUTCHours().toString().padStart(2, '0');
-            const min = dt.getUTCMinutes().toString().padStart(2, '0');
-            const dateStr = `${month} ${day}, ${hour}:${min}`;
+            const dateStr = `${dt.toLocaleString('en-US', { month: 'short' })} ${dt.getUTCDate()}, ${dt.getUTCHours().toString().padStart(2, '0')}:${dt.getUTCMinutes().toString().padStart(2, '0')}`;
             return `<tr><td>${dateStr} UTC</td><td>#${e.Blockheight}</td><td>${btc} BTC</td></tr>`;
         }).join('');
     }
@@ -258,43 +251,29 @@
             try {
                 const res = await fetch(PROXY + encodeURIComponent(url));
                 const data = await res.json();
-                if (data.result?.report) {
-                    allPayouts.push(...data.result.report);
-                }
+                if (data.result?.report) allPayouts.push(...data.result.report);
             } catch(e) {}
             date.setMonth(date.getMonth() - 1);
         }
-
         const valid = allPayouts.filter(p => parseInt(p.PayoutAmt || 0) > 0);
-
         valid.sort((a, b) => new Date(b.TimeUTC) - new Date(a.TimeUTC));
-
         const recent = valid.slice(0, 10);
-
         const tbody = document.getElementById('payouts-table');
         if (recent.length === 0) {
             tbody.innerHTML = '<tr><td colspan="3" style="text-align:center">No payouts yet</td></tr>';
             return;
         }
-
         tbody.innerHTML = recent.map(p => {
-            const sats = parseInt(p.PayoutAmt);
-            const btc = (sats / 100000000).toFixed(8);
+            const btc = (parseInt(p.PayoutAmt) / 100000000).toFixed(8);
             const dt = new Date(p.TimeUTC);
-            const month = dt.toLocaleString('en-US', { month: 'short' });
-            const day = dt.getUTCDate();
-            const hour = dt.getUTCHours().toString().padStart(2, '0');
-            const min = dt.getUTCMinutes().toString().padStart(2, '0');
-            const dateStr = `${month} ${day}, ${hour}:${min}`;
-            const txLink = `<a href="https://mempool.space/tx/${p.TXID}" target="_blank" style="color:var(--accent)">${p.TXID.substring(0,12)}...</a>`;
-            return `<tr><td>${dateStr} UTC</td><td>${btc} BTC</td><td>${txLink}</td></tr>`;
+            const dateStr = `${dt.toLocaleString('en-US', { month: 'short' })} ${dt.getUTCDate()}, ${dt.getUTCHours().toString().padStart(2, '0')}:${dt.getUTCMinutes().toString().padStart(2, '0')}`;
+            return `<tr><td>${dateStr} UTC</td><td>${btc} BTC</td><td><a href="https://mempool.space/tx/${p.TXID}" target="_blank" style="color:var(--accent)">${p.TXID.substring(0,12)}...</a></td></tr>`;
         }).join('');
     }
 
     async function update() {
         if (!WALLET) return;
         document.getElementById('auth-overlay').style.display = 'none';
-
         try {
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const price = parseFloat((await priceRes.json()).data.amount);
@@ -318,22 +297,13 @@
             document.getElementById('p-finder').innerText = block.username ? (block.username.substring(0,8) + (block.workername ? "."+block.workername : "")) : "...";
             document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
             
-            if (block.ts) {
-                lastBlockTimestamp = Math.floor(new Date(block.ts).getTime() / 1000);
-            }
+            if (block.ts) { lastBlockTimestamp = Math.floor(new Date(block.ts).getTime() / 1000); }
             updateTimeSince();
 
-            // Blocks in Window
             const sharelog = parseFloat(block.sharelog_window || 0);
-            let k = 0;
-            let cum = 0;
-            const blocks = blocksData.result?.blocks || [];
-            blocks.sort((a, b) => b.height - a.height);
-            for (const b of blocks) {
-                cum += parseFloat(b.accepted_shares || 0);
-                k++;
-                if (cum >= sharelog) break;
-            }
+            let k = 0, cum = 0;
+            const blocks = (blocksData.result?.blocks || []).sort((a, b) => b.height - a.height);
+            for (const b of blocks) { cum += parseFloat(b.accepted_shares || 0); k++; if (cum >= sharelog) break; }
             document.getElementById('p-blocks').innerText = k;
 
             const unpaid = parseFloat(u.unpaid||0);
@@ -363,12 +333,7 @@
             liveChart.update();
             localStorage.setItem('live_v4', JSON.stringify({l: liveChart.data.labels, h: liveChart.data.datasets[0].data, w: liveChart.data.datasets[1].data}));
 
-            if (!window.earningsLoaded) {
-                await fetchAndRenderEarnings();
-                await fetchAndRenderPayouts();
-                window.earningsLoaded = true;
-            }
-
+            if (!window.earningsLoaded) { await fetchAndRenderEarnings(); await fetchAndRenderPayouts(); window.earningsLoaded = true; }
         } catch (e) { console.error(e); }
     }
 
@@ -379,31 +344,14 @@
             data: { labels: [], datasets: [{ label: 'Daily PH/s', data: [], borderColor: '#58a6ff', tension: 0.3, fill: true, backgroundColor: 'rgba(88,166,255,0.1)' }] },
             options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' } } } }
         });
-
         const liveCtx = document.getElementById('liveChart').getContext('2d');
         const s = JSON.parse(localStorage.getItem('live_v4') || '{"l":[], "h":[], "w":[]}');
         liveChart = new Chart(liveCtx, {
             type: 'line',
-            data: { 
-                labels: s.l, 
-                datasets: [
-                    { label: 'PH/s', data: s.h, borderColor: '#58a6ff', tension: 0.2, pointRadius: 0 },
-                    { label: 'Miners', data: s.w, borderColor: '#ff7b72', yAxisID: 'y1', pointRadius: 0, borderDash: [5,5] }
-                ] 
-            },
-            options: { 
-                responsive: true, maintainAspectRatio: false, 
-                scales: { 
-                    y: { grid: { color: '#30363d' } },
-                    y1: { position: 'right', grid: { display: false }, ticks: { precision: 0 } }
-                }
-            }
+            data: { labels: s.l, datasets: [{ label: 'PH/s', data: s.h, borderColor: '#58a6ff', tension: 0.2, pointRadius: 0 }, { label: 'Miners', data: s.w, borderColor: '#ff7b72', yAxisID: 'y1', pointRadius: 0, borderDash: [5,5] }] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' } }, y1: { position: 'right', grid: { display: false }, ticks: { precision: 0 } } } }
         });
-
-        await fetchDeepHistory();
-        update(); 
-        setInterval(update, 60000);
-        setInterval(updateTimeSince, 30000);
+        await fetchDeepHistory(); update(); setInterval(update, 60000); setInterval(updateTimeSince, 1000);
     }
     if (WALLET) init();
 </script>
