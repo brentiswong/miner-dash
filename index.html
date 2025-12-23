@@ -2,85 +2,137 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NGU TECH DEBUG</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NGU TECH - Live Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { background: #0d1117; color: #c9d1d9; font-family: sans-serif; padding: 20px; margin: 0; }
-        .box { background: #161b22; border: 1px solid #30363d; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
-        .row { display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid #30363d; padding-bottom: 5px; }
-        .label { color: #8b949e; font-size: 0.8rem; text-transform: uppercase; }
-        .val { font-family: monospace; font-weight: bold; color: #58a6ff; }
-        #debug { color: #f85149; font-size: 0.7rem; margin-top: 20px; white-space: pre-wrap; }
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --dead: #f85149; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; }
+        .container { max-width: 1200px; margin: auto; }
+        
+        .pool-status { background: #1c2128; border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; flex-wrap: wrap; gap: 10px; }
+        .stat-item { display: flex; align-items: center; gap: 6px; }
+        .pool-label { color: #8b949e; text-transform: uppercase; font-size: 0.65rem; font-weight: 700; }
+        
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; }
+        .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; font-family: monospace; }
+        
+        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 320px; margin-bottom: 20px; position: relative; }
+        
+        table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+        th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; }
+        td { padding: 12px; border-bottom: 1px solid var(--border); }
+        
+        #status-bar { font-size: 0.7rem; color: var(--accent); margin-bottom: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div class="box">
-        <div class="row"><span class="label">Status:</span> <span id="s-status" class="val">INITIALIZING</span></div>
-        <div class="row"><span class="label">Last Block:</span> <span id="s-height" class="val">---</span></div>
-        <div class="row"><span class="label">Finder:</span> <span id="s-finder" class="val">---</span></div>
-        <div class="row"><span class="label">Time Ago:</span> <span id="s-time" class="val" style="color:#3fb950">---</span></div>
+<div class="container">
+    <div id="status-bar">SYNCING WITH MAIN BRANCH...</div>
+    
+    <div class="pool-status">
+        <div class="stat-item"><span class="pool-label">Pool HR:</span> <span id="p-hr-global">...</span></div>
+        <div class="stat-item"><span class="pool-label">Block:</span> <span id="p-height">...</span></div>
+        <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder">...</span></div>
+        <div id="p-time" style="color:var(--accent); font-weight:bold;">Calculating...</div>
     </div>
 
-    <div class="box">
-        <div class="row"><span class="label">User PH/s:</span> <span id="s-hr" class="val">---</span></div>
-        <div class="row"><span class="label">Unpaid BTC:</span> <span id="s-unpaid" class="val">---</span></div>
+    <div class="grid">
+        <div class="card"><div class="pool-label">User Hashrate (PH/s)</div><div id="t_hr" class="value">...</div></div>
+        <div class="card"><div class="pool-label">Est Next Block</div><div id="t_est" class="value" style="color:var(--accent)">...</div></div>
+        <div class="card"><div class="pool-label">Unpaid (BTC)</div><div id="t_unpaid" class="value" style="color:var(--ok)">...</div></div>
     </div>
 
-    <div id="debug">Log: Starting...</div>
+    <div class="chart-box">
+        <canvas id="liveChart"></canvas>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>Worker</th><th>5m (TH)</th><th>24h (TH)</th><th>Status</th></tr>
+        </thead>
+        <tbody id="worker-table"></tbody>
+    </table>
+</div>
 
 <script>
     const WALLET = "bc1q76zgkz5ussy2hl54vdz7nv0q96kta82ckdu7ys";
     const PROXY = 'https://api.allorigins.win/raw?url=';
+    let liveChart;
 
-    function setDebug(msg) {
-        document.getElementById('debug').innerText += "\n> " + msg;
+    function setText(id, text) {
+        const el = document.getElementById(id);
+        if (el) el.innerText = text;
     }
 
-    async function update() {
+    async function updateLive() {
         try {
-            setDebug("Step 1: Fetching Ocean API...");
+            const [hrRes, uRes, pRes, phRes] = await Promise.all([
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`))
+            ]);
             
-            const response = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`));
-            if (!response.ok) throw new Error("Proxy failed");
+            const hr = await hrRes.json();
+            const u = await uRes.json();
+            const p = await pRes.json();
+            const ph = await phRes.json();
+
+            // Stats
+            setText('t_hr', (parseFloat(hr.result?.total_300s || 0)/1e15).toFixed(2));
+            setText('t_unpaid', parseFloat(u.result?.unpaid || 0).toFixed(8));
+            setText('t_est', parseFloat(u.result?.estimated_earn_next_block || 0).toFixed(8));
+            setText('p-hr-global', (parseFloat(ph.result?.pool_300s || 0)/1e18).toFixed(2) + " EH/s");
+
+            // Block & Finder
+            const block = p.result?.blocks[0] || {};
+            setText('p-height', "#" + (block.height || "---"));
+            setText('p-finder', block.username ? (block.username.substring(0,8)) : "---");
+
+            // Time Math (iPad specific fix)
+            if (block.ts) {
+                const baseTs = block.ts.split('.')[0].replace('T', ' '); 
+                const blockTime = new Date(baseTs + " UTC").getTime();
+                const diff = Math.floor((Date.now() - blockTime) / 1000);
+
+                if (diff < 0 || isNaN(diff)) setText('p-time', "Just now");
+                else if (diff < 60) setText('p-time', diff + "s ago");
+                else if (diff < 3600) setText('p-time', Math.floor(diff/60) + "m ago");
+                else setText('p-time', Math.floor(diff/3600) + "h ago");
+            }
+
+            // Chart
+            const label = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            liveChart.data.labels.push(label);
+            liveChart.data.datasets[0].data.push((parseFloat(hr.result?.total_300s || 0)/1e15).toFixed(2));
+            if(liveChart.data.labels.length > 20) { liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); }
+            liveChart.update();
+
+            // Table
+            const ws = hr.result?.workers || {};
+            document.getElementById('worker-table').innerHTML = Object.keys(ws).map(n => {
+                const s = ws[n][0];
+                return `<tr><td>${n}</td><td>${(s.hashrate_300s/1e12).toFixed(1)}</td><td>${(s.hashrate_86400s/1e12).toFixed(1)}</td><td style="color:${s.hashrate_300s > 0 ? 'var(--ok)':'var(--dead)'}">●</td></tr>`;
+            }).join('');
             
-            const data = await response.json();
-            setDebug("Step 2: JSON parsed successfully.");
-
-            const block = data.result.blocks[0];
-            document.getElementById('s-height').innerText = "#" + block.height;
-            document.getElementById('s-finder').innerText = block.username.substring(0,10);
-            
-            setDebug("Step 3: Calculating time for " + block.ts);
-
-            // The simplest possible time math
-            const blockDate = new Date(block.ts.replace('T', ' ').split('.')[0] + " UTC");
-            const now = new Date();
-            const diff = Math.floor((now - blockDate) / 1000);
-
-            let displayTime = diff + "s ago";
-            if (diff > 60) displayTime = Math.floor(diff/60) + "m ago";
-            if (diff < 0) displayTime = "Just now";
-            
-            document.getElementById('s-time').innerText = displayTime;
-            document.getElementById('s-status').innerText = "ONLINE";
-            setDebug("Step 4: All updates complete.");
-
-            // Fetch User Stats
-            const uRes = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`));
-            const uData = await uRes.json();
-            document.getElementById('s-unpaid').innerText = uData.result.unpaid + " BTC";
-
-        } catch (e) {
-            setDebug("ERROR: " + e.message);
-            document.getElementById('s-status').innerText = "FAILED";
+            setText('status-bar', "SYSTEM LIVE");
+        } catch(e) { 
+            console.error(e);
+            setText('status-bar', "SYNC ERROR");
         }
     }
 
-    // Run immediately
-    update();
-    // Refresh every 30 seconds
-    setInterval(update, 30000);
+    liveChart = new Chart(document.getElementById('liveChart'), { 
+        type: 'line', 
+        data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, tension: 0.4 }] },
+        options: { responsive: true, maintainAspectRatio: false, scales: { x: { display: false } } }
+    });
+
+    updateLive();
+    setInterval(updateLive, 60000);
 </script>
 </body>
 </html>
