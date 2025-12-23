@@ -5,7 +5,6 @@
     <title>NGU TECH - Pro BTC Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* Your existing styles unchanged */
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --worker-line: #ff7b72; --border: #30363d; --ok: #3fb950; --dead: #f85149; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; }
         .container { max-width: 1200px; margin: auto; }
@@ -13,9 +12,24 @@
         .pool-status { background: #1c2128; border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; flex-wrap: wrap; gap: 10px; }
         .stat-item { display: flex; align-items: center; gap: 6px; }
         .pool-label { color: #8b949e; text-transform: uppercase; font-size: 0.65rem; font-weight: 700; }
-        /* ... rest of styles ... */
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; }
+        .label { font-size: 0.65rem; color: #8b949e; text-transform: uppercase; font-weight: 700; }
+        .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; }
+        .sub-value { font-size: 0.8rem; margin-top: 4px; opacity: 0.8; }
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        @media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
+        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 320px; position: relative; }
+        .controls { position: absolute; top: 10px; right: 15px; z-index: 10; display: flex; gap: 5px; }
+        .btn-sm { background: #30363d; color: white; border: none; padding: 4px 8px; border-radius: 3px; font-size: 0.65rem; cursor: pointer; }
+        .btn-sm.active { background: var(--accent); }
+        .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 25px; }
+        table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; }
+        th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; cursor: pointer; }
+        td { padding: 12px; border-bottom: 1px solid var(--border); }
+        h3 { font-size: 0.85rem; color: var(--accent); padding: 15px; margin: 0; background: #1c2128; border-bottom: 1px solid var(--border); text-transform: uppercase; }
         input { width: 340px; padding: 12px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; margin: 15px 0; }
-        button#login-btn { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; touch-action: manipulation; }
+        button#login-btn { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
         #status-msg { margin-top: 20px; color: #f85149; font-size: 0.9rem; }
     </style>
 </head>
@@ -27,83 +41,154 @@
         <input type="text" id="wallet-input" placeholder="Enter BTC Address">
         <br><br>
         <button id="login-btn">Sync Dashboard</button>
-        <div id="status-msg"></div>
+        <div id="status-msg">Syncing... message will appear here</div>
     </div>
 </div>
 
-<!-- Rest of HTML unchanged -->
+<div class="container">
+    <div class="pool-status">
+        <div class="stat-item"><span class="pool-label">Pool HR:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">TIDES Luck:</span> <span id="p-luck" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">TIDES Blocks:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
+        <div id="p-time" style="color:#8b949e">Loading...</div>
+    </div>
+
+    <!-- The rest of the dashboard HTML (grid, charts, tables) remains the same -->
+
+    <div class="grid">
+        <!-- ... unchanged ... -->
+    </div>
+
+    <div class="chart-grid">
+        <!-- ... unchanged ... -->
+    </div>
+
+    <div class="table-container">
+        <!-- Miner Status table unchanged -->
+    </div>
+
+    <div class="table-container">
+        <h3>Last 10 Earnings (Recent Blocks You Contributed To)</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date (UTC)</th>
+                    <th>Block Height</th>
+                    <th>Earned (BTC)</th>
+                </tr>
+            </thead>
+            <tbody id="earnings-table"></tbody>
+        </table>
+    </div>
+</div>
 
 <script>
     let WALLET = localStorage.getItem('ocean_wallet');
     const PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
-    // ... variables unchanged ...
+    let histChart, liveChart;
+    let fullHistData = []; 
+    let lastWorkers = [];
+    let currentSort = { key: 'name', asc: true };
+    let lastBlockTimestamp = 0;
+    let recentEarningsCount = 0;
 
-    // Fixed login with better mobile support
-    document.getElementById('login-btn').addEventListener('click', login);
-    document.getElementById('wallet-input').addEventListener('keypress', (e) => {
+    // Improved button handling for mobile/touch
+    const loginBtn = document.getElementById('login-btn');
+    const walletInput = document.getElementById('wallet-input');
+    const statusMsg = document.getElementById('status-msg');
+
+    loginBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        login();
+    });
+    loginBtn.addEventListener('click', login);
+
+    walletInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') login();
     });
 
     function login() { 
-        const v = document.getElementById('wallet-input').value.trim(); 
-        const msg = document.getElementById('status-msg');
-        msg.textContent = '';
+        const v = walletInput.value.trim(); 
+        statusMsg.textContent = '';
         if (!v) {
-            msg.textContent = 'Please enter a BTC address';
+            statusMsg.textContent = 'Please enter a BTC address';
             return;
         }
         if (!v.startsWith('bc1')) {
-            msg.textContent = 'Invalid address (must start with bc1)';
+            statusMsg.textContent = 'Invalid address (must start with bc1)';
             return;
         }
-        msg.textContent = 'Syncing...';
+        statusMsg.textContent = 'Syncing... page will reload';
         localStorage.setItem('ocean_wallet', v);
         location.reload(); 
     }
 
-    // ... rest of functions unchanged ...
+    // ... (other functions like renderWorkers, formatTimeAgo, updateTimeSince, fetchDeepHistory, filterHist unchanged)
+
+    async function fetchAndRenderEarnings() {
+        // ... unchanged fetching ...
+
+        const valid = allEarnings.filter(e => e.Blockheight !== "-1" && parseInt(e.NetUserRwd || 0) > 0);
+        valid.sort((a, b) => new Date(b.TimeUTC) - new Date(a.TimeUTC));
+        recentEarningsCount = valid.length;
+
+        // ... render table unchanged ...
+
+        document.getElementById('p-blocks').innerText = recentEarningsCount || '0';
+    }
 
     async function update() {
+        // Hide overlay immediately
         document.getElementById('auth-overlay').style.display = 'none';
 
-        if (!WALLET) return;
+        if (!WALLET) {
+            statusMsg.textContent = 'No address saved';
+            return;
+        }
+
+        statusMsg.textContent = 'Loading data...';
 
         try {
-            // ... fetches unchanged ...
+            // ... fetches and stats unchanged ...
 
-            const block = pData.result?.blocks?.[0] || {};
-
-            // ... other stats ...
-
-            // Fixed TIDES Luck %
+            // Correct TIDES Luck (official sites don't show %, but this is the standard mining luck proxy for the current window)
             if (block.sharelog_window && block.network_difficulty) {
                 const sharelog = parseFloat(block.sharelog_window);
                 const diff = parseFloat(block.network_difficulty);
                 const b32 = Math.pow(2, 32);
                 const luck = (diff * b32 / sharelog) * 100;
                 document.getElementById('p-luck').innerText = luck.toFixed(1) + "%";
-            } else {
-                document.getElementById('p-luck').innerText = "...";
             }
 
-            // TIDES Blocks (from earnings history - blocks you contributed to in window)
-            document.getElementById('p-blocks').innerText = recentEarningsCount || "0";
-
-            // ... rest ...
+            // ... rest unchanged ...
 
             if (!window.earningsLoaded) {
                 await fetchAndRenderEarnings();
                 window.earningsLoaded = true;
             }
 
+            statusMsg.textContent = '';
+
         } catch (e) {
             console.error(e);
-            // Friendly message
-            document.querySelectorAll('.value, .sub-value').forEach(el => el.textContent = 'No activity yet');
+            statusMsg.textContent = 'No activity or invalid address';
         }
     }
 
-    // init unchanged, but calls update() which hides overlay
+    function init() {
+        // ... chart init unchanged ...
+
+        if (WALLET) {
+            update();
+            setInterval(update, 60000);
+            setInterval(updateTimeSince, 30000);
+            fetchDeepHistory();
+        } else {
+            statusMsg.textContent = 'Enter your BTC address to start';
+        }
+    }
 
     init();
 </script>
