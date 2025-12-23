@@ -2,274 +2,220 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>NGU TECH - Pro BTC Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NGU TECH - Persistent Dashboard v10</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --worker-line: #ff7b72; --border: #30363d; --ok: #3fb950; --dead: #f85149; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; }
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; --warn: #d29922; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
         .container { max-width: 1200px; margin: auto; }
         #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-        .pool-status { background: #1c2128; border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; flex-wrap: wrap; gap: 10px; }
-        .stat-item { display: flex; align-items: center; gap: 6px; }
-        .pool-label { color: #8b949e; text-transform: uppercase; font-size: 0.65rem; font-weight: 700; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; }
-        .label { font-size: 0.65rem; color: #8b949e; text-transform: uppercase; font-weight: 700; }
-        .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; }
-        .sub-value { font-size: 0.8rem; margin-top: 4px; opacity: 0.8; }
-        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-        @media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
-        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 320px; position: relative; }
-        .controls { position: absolute; top: 10px; right: 15px; z-index: 10; display: flex; gap: 5px; }
-        .btn-sm { background: #30363d; color: white; border: none; padding: 4px 8px; border-radius: 3px; font-size: 0.65rem; cursor: pointer; }
-        .btn-sm.active { background: var(--accent); }
-        .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 25px; }
-        table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; }
-        th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; cursor: pointer; }
-        td { padding: 12px; border-bottom: 1px solid var(--border); }
-        h3 { font-size: 0.85rem; color: var(--accent); padding: 15px; margin: 0; background: #1c2128; border-bottom: 1px solid var(--border); text-transform: uppercase; }
-        .txid-link { color: var(--accent); text-decoration: none; font-size: 0.75rem; }
+        .login-card { background: var(--card); padding: 30px; border-radius: 12px; border: 1px solid var(--border); text-align: center; width: 90%; max-width: 400px; }
+        input { width: 100%; padding: 12px; margin: 15px 0; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 6px; box-sizing: border-box; }
+        button { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; }
+        .label { font-size: 0.8rem; color: #8b949e; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; }
+        .value { font-size: 1.8rem; font-weight: bold; color: white; margin-top: 8px; }
+        .sub-value { font-size: 0.85rem; color: var(--accent); margin-top: 5px; font-family: monospace; }
+        .chart-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 25px; height: 450px; }
+        .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 15px; background: #1c2128; color: #8b949e; font-size: 0.75rem; text-transform: uppercase; cursor: pointer; }
+        th:hover { color: white; }
+        td { padding: 15px; border-bottom: 1px solid var(--border); font-family: monospace; font-size: 0.9rem; }
+        .status-online { color: var(--ok); font-weight: bold; }
+        .status-offline { color: var(--err); font-weight: bold; }
+        .logout { float: right; color: var(--err); cursor: pointer; font-size: 0.75rem; font-weight: bold; padding: 10px; }
     </style>
 </head>
 <body>
 
-<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH Dashboard</h2><input type="text" id="wallet-input" placeholder="Enter BTC Address"><br><br><button id="login-btn" onclick="login()">Sync Dashboard</button></div></div>
+<div id="auth-overlay">
+    <div class="login-card">
+        <h2>Miner Access</h2>
+        <input type="text" id="wallet-input" placeholder="Enter Wallet Address (bc1...)">
+        <button onclick="login()">Launch Dashboard</button>
+    </div>
+</div>
 
 <div class="container">
-    <div class="pool-status">
-        <div class="stat-item"><span class="pool-label">Pool Hashrate:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
-        <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
-        <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
-        <div class="stat-item"><span class="pool-label">Blocks in Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
-        <div id="p-time" style="color:#8b949e">Calculating...</div>
-    </div>
-
+    <div style="overflow: auto;"><span class="logout" onclick="logout()">LOGOUT & CLEAR CACHE</span></div>
     <div class="grid">
         <div class="card">
-            <div class="label">Hashrate (5m / 3h / 24h)</div>
-            <div id="t_hr" class="value">0.00 PH/s</div>
-            <div id="t_hr_avg" class="sub-value" style="color:var(--accent)">0.00 / 0.00 PH/s</div>
+            <div class="label">Hashrate (Live)</div>
+            <div id="t_hr" class="value">0.00 TH/s</div>
+            <div id="t_hr_avg" class="sub-value">Averages: 3h: 0 | 24h: 0</div>
         </div>
         <div class="card">
-            <div class="label">Unpaid (BTC)</div>
-            <div id="t_unpaid" class="value">0.00000000</div>
-            <div id="t_usd" class="sub-value" style="color:var(--ok)">$0.00 USD</div>
+            <div class="label">Unpaid Balance</div>
+            <div id="t_unpaid" class="value">0.0000 BTC</div>
+            <div id="t_usd" class="sub-value" style="color: var(--ok);">$0.00 USD</div>
         </div>
         <div class="card">
-            <div class="label">Est. Next Block / TIDES</div>
-            <div id="t_est" class="value">0.00000000</div>
-            <div id="t_shares" class="sub-value">0.00G Shares</div>
+            <div class="label">Market Price</div>
+            <div id="btc_price" class="value">...</div>
+            <div class="sub-value">Coinbase Live Spot</div>
         </div>
     </div>
 
-    <div class="chart-grid">
-        <div class="chart-box">
-            <div class="controls">
-                <button class="btn-sm" onclick="filterHist(7)">1W</button>
-                <button class="btn-sm" onclick="filterHist(30)">1M</button>
-                <button class="btn-sm active" onclick="filterHist(0)">ALL</button>
-            </div>
-            <h3 style="background:transparent; padding:0">Historical PH/s</h3>
-            <canvas id="histChart"></canvas>
-        </div>
-        <div class="chart-box">
-            <h3 style="background:transparent; padding:0">Live 24H (HR & Miners)</h3>
-            <canvas id="liveChart"></canvas>
-        </div>
-    </div>
+    <div class="chart-container"><canvas id="hashrateChart"></canvas></div>
 
     <div class="table-container">
-        <h3>Miner Status</h3>
         <table>
             <thead>
-                <tr><th>Name</th><th>5m (TH/s)</th><th>3h (TH/s)</th><th>24h (TH/s)</th><th>Status</th></tr>
+                <tr>
+                    <th onclick="sortWorkers('name')">Worker ↕</th>
+                    <th onclick="sortWorkers('r5')">5m ↕</th>
+                    <th onclick="sortWorkers('r3')">3h ↕</th>
+                    <th onclick="sortWorkers('r24')">24h ↕</th>
+                    <th onclick="sortWorkers('online')">Status ↕</th>
+                </tr>
             </thead>
-            <tbody id="worker-table"></tbody>
+            <tbody id="w-body"></tbody>
         </table>
-    </div>
-
-    <div class="dual-table-grid">
-        <div class="table-container">
-            <h3>Last 10 Earnings</h3>
-            <table>
-                <thead><tr><th>Date (UTC)</th><th>Block</th><th>Earned</th></tr></thead>
-                <tbody id="earnings-table"><tr><td colspan="3">Loading...</td></tr></tbody>
-            </table>
-        </div>
-        <div class="table-container">
-            <h3>Last 10 Payouts</h3>
-            <table>
-                <thead><tr><th>Date (UTC)</th><th>Amount</th><th>TXID</th></tr></thead>
-                <tbody id="payouts-table"><tr><td colspan="3">Loading...</td></tr></tbody>
-            </table>
-        </div>
     </div>
 </div>
 
 <script>
+    const DB_KEY = 'NGU_TECH_V10';
     let WALLET = localStorage.getItem('ocean_wallet');
     const PROXY = 'https://api.allorigins.win/raw?url=';
-    let histChart, liveChart;
-    let fullHistData = [], lastBlockTimestamp = 0;
+    const OCEAN_API = 'https://api.ocean.xyz/v1';
+    let chart, currentWorkers = [], sortKey = 'name', sortAsc = true;
 
-    function login() { 
-        const v = document.getElementById('wallet-input').value.trim(); 
-        if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } 
+    // Safety: Strip commas and non-numeric junk
+    function cleanNum(val) {
+        if (typeof val === 'string') val = val.replace(/,/g, '');
+        const n = parseFloat(val);
+        return isNaN(n) ? 0 : n;
     }
 
-    async function getPoolName(height) {
-        try {
-            const res = await fetch(`https://mempool.space/api/v1/mining/pool/ocean/blocks`);
-            const blocks = await res.json();
-            const match = blocks.find(b => b.height === height);
-            if (match) {
-                if (match.minerAddress === 'bc1qzk8vs4p3skr75nskpqyh4f9l0z3hmqd2u4tvpu') return 'NiceHash';
-                const tagMatch = match.minerName ? match.minerName.match(/\(([^)]+)\)/) : null;
-                return tagMatch ? tagMatch[1] : (match.minerName || match.minerAddress.slice(0,8));
+    function formatHashrate(hps) {
+        if (!hps || hps <= 0) return { v: 0, u: "TH/s" };
+        if (hps >= 1e21) return { v: (hps/1e21).toFixed(2), u: "EH/s" };
+        if (hps >= 1e18) return { v: (hps/1e18).toFixed(2), u: "PH/s" };
+        return { v: (hps/1e12).toFixed(2), u: "TH/s" };
+    }
+
+    function login() {
+        const val = document.getElementById('wallet-input').value.trim();
+        if(val) { localStorage.setItem('ocean_wallet', val); location.reload(); }
+    }
+
+    function logout() { localStorage.clear(); location.reload(); }
+
+    function initChart() {
+        const rawSaved = localStorage.getItem(DB_KEY);
+        const saved = rawSaved ? JSON.parse(rawSaved) : {labels:[], h5:[], h3:[], h24:[], u: "TH/s"};
+        
+        const ctx = document.getElementById('hashrateChart').getContext('2d');
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: saved.labels,
+                datasets: [
+                    { label: '5m Hashrate', data: saved.h5, borderColor: '#58a6ff', backgroundColor: 'rgba(88, 166, 255, 0.1)', fill: true, tension: 0.3 },
+                    { label: '3h Hashrate', data: saved.h3, borderColor: '#d29922', fill: false, borderWidth: 2, pointRadius: 0 },
+                    { label: '24h Hashrate', data: saved.h24, borderColor: '#3fb950', borderDash: [5, 5], fill: false, borderWidth: 2, pointRadius: 0 }
+                ]
+            },
+            options: { 
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#8b949e' } } },
+                scales: { 
+                    y: { beginAtZero: true, grid: { color: '#30363d' }, title: { display: true, text: 'Hashrate (' + (saved.u || 'TH/s') + ')', color: '#8b949e' }, ticks: { color: '#8b949e' } },
+                    x: { ticks: { color: '#8b949e' }, grid: { display: false } }
+                }
             }
-            return 'Ocean';
-        } catch (e) { return '...'; }
+        });
     }
 
-    function updateTimeSince() {
-        if (!lastBlockTimestamp) return;
-        const now = Math.floor(Date.now() / 1000);
-        const diff = now - lastBlockTimestamp;
-        if (diff < 60) document.getElementById('p-time').innerText = `${diff}s ago`;
-        else if (diff < 3600) document.getElementById('p-time').innerText = `${Math.floor(diff/60)}m ago`;
-        else document.getElementById('p-time').innerText = `${Math.floor(diff/3600)}h ago`;
+    function renderWorkers() {
+        const sorted = [...currentWorkers].sort((a, b) => {
+            let valA = a[sortKey], valB = b[sortKey];
+            if (typeof valA === 'string') return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            return sortAsc ? valA - valB : valB - valA;
+        });
+        document.getElementById('w-body').innerHTML = sorted.map(w => `
+            <tr><td><b>${w.name}</b></td><td>${(w.r5/1e12).toFixed(2)}</td><td>${(w.r3/1e12).toFixed(2)}</td><td>${(w.r24/1e12).toFixed(2)}</td>
+            <td class="${w.online ? 'status-online' : 'status-offline'}">${w.online ? 'ONLINE' : 'OFFLINE'}</td></tr>
+        `).join('');
     }
 
-    async function fetchDeepHistory() {
-        let date = new Date();
-        const results = [];
-        for(let i=0; i<6; i++) {
-            const y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, '0');
-            try {
-                const res = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_user_report/${WALLET}/${y}-${m}`));
-                const data = await res.json();
-                if(data.result?.report) results.push(...data.result.report);
-            } catch(e) {}
-            date.setMonth(date.getMonth() - 1);
-        }
-        fullHistData = results.filter(d => parseFloat(d.hashrate_avg_24hr_thsec) > 0).sort((a,b) => new Date(a.date) - new Date(b.date));
-        filterHist(0);
-    }
-
-    function filterHist(days) {
-        const filtered = days === 0 ? fullHistData : fullHistData.slice(-days);
-        histChart.data.labels = filtered.map(d => d.date);
-        histChart.data.datasets[0].data = filtered.map(d => (parseFloat(d.hashrate_avg_24hr_thsec)/1000).toFixed(2));
-        histChart.update();
-    }
-
-    async function fetchTables() {
-        let date = new Date();
-        let eArr = [], pArr = [];
-        for(let i=0; i<3; i++) {
-            const y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, '0');
-            try {
-                const [er, pr] = await Promise.all([
-                    fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_earnings_report/${WALLET}/${y}-${m}`)),
-                    fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_payout_report/${WALLET}/${y}-${m}`))
-                ]);
-                const ed = await er.json(), pd = await pr.json();
-                if(ed.result?.report) eArr.push(...ed.result.report);
-                if(pd.result?.report) pArr.push(...pd.result.report);
-            } catch(e) {}
-            date.setMonth(date.getMonth() - 1);
-        }
-        const validE = eArr.filter(e => e.Blockheight !== "-1").sort((a,b) => new Date(b.TimeUTC) - new Date(a.TimeUTC)).slice(0,10);
-        document.getElementById('earnings-table').innerHTML = validE.map(e => `<tr><td>${e.TimeUTC.replace('T',' ').split('.')[0]}</td><td>#${e.Blockheight}</td><td>${(e.NetUserRwd/1e8).toFixed(8)}</td></tr>`).join('');
-        const validP = pArr.sort((a,b) => new Date(b.TimeUTC) - new Date(a.TimeUTC)).slice(0,10);
-        document.getElementById('payouts-table').innerHTML = validP.map(p => `<tr><td>${p.TimeUTC.replace('T',' ').split('.')[0]}</td><td>${(p.PayoutAmt/1e8).toFixed(8)}</td><td><a class="txid-link" href="https://mempool.space/tx/${p.TXID}" target="_blank">${p.TXID.slice(0,8)}...</a></td></tr>`).join('');
+    function sortWorkers(key) {
+        if (sortKey === key) sortAsc = !sortAsc;
+        else { sortKey = key; sortAsc = true; }
+        renderWorkers();
     }
 
     async function update() {
         if (!WALLET) return;
         document.getElementById('auth-overlay').style.display = 'none';
         try {
-            const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
-            const priceData = await priceRes.json();
-            const price = parseFloat(priceData.data.amount);
+            const btcRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
+            const btcJson = await btcRes.json();
+            const price = cleanNum(btcJson.data.amount);
+            document.getElementById('btc_price').innerText = `$${price.toLocaleString()}`;
 
-            const [hrRes, uRes, poolRes, pHRRes, blocksRes] = await Promise.all([
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=40`))
-            ]);
-
-            const hrData = await hrRes.json(), u = (await uRes.json()).result || {}, pData = await poolRes.json(), pHR = await pHRRes.json(), bData = await blocksRes.json();
-            const block = pData.result?.blocks?.[0] || {};
+            const hrUrl = PROXY + encodeURIComponent(`${OCEAN_API}/user_hashrate_full/${WALLET}`);
+            const snUrl = PROXY + encodeURIComponent(`${OCEAN_API}/statsnap/${WALLET}`);
+            const [hrRes, snRes] = await Promise.all([fetch(hrUrl), fetch(snUrl)]);
             
-            document.getElementById('p-height').innerText = "#" + (block.height || "...");
-            if(block.height) getPoolName(block.height).then(n => document.getElementById('p-finder').innerText = n);
-            document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
+            const hrData = await hrRes.json();
+            const snData = await snRes.json();
+
+            // Balance logic
+            const btcBalance = cleanNum(snData.result?.unpaid || snData.unpaid);
+            document.getElementById('t_unpaid').innerText = `${btcBalance.toFixed(8)} BTC`;
+            document.getElementById('t_usd').innerText = `$${(btcBalance * price).toLocaleString(undefined, {minimumFractionDigits: 2})} USD`;
+
+            // Worker logic
+            const wObj = hrData.result?.workers || hrData.workers || {};
+            let t5 = 0, t3 = 0, t24 = 0;
+            currentWorkers = Object.keys(wObj).map(name => {
+                const s = Array.isArray(wObj[name]) ? wObj[name][0] : wObj[name];
+                const r5 = cleanNum(s.hashrate_300s), r3 = cleanNum(s.hashrate_10800s), r24 = cleanNum(s.hashrate_86400s);
+                t5 += r5; t3 += r3; t24 += r24;
+                return { name, r5, r3, r24, online: r5 > 0 };
+            });
+            renderWorkers();
+
+            const s5 = formatHashrate(t5), s3 = formatHashrate(t3), s24 = formatHashrate(t24);
+            document.getElementById('t_hr').innerText = s5.v + " " + s5.u;
+            document.getElementById('t_hr_avg').innerText = `3h: ${s3.v} ${s3.u} | 24h: ${s24.v} ${s24.u}`;
+
+            const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            chart.options.scales.y.title.text = 'Hashrate (' + s5.u + ')';
+            chart.data.labels.push(now);
+            chart.data.datasets[0].data.push(s5.v);
+            chart.data.datasets[1].data.push(s3.v);
+            chart.data.datasets[2].data.push(s24.v);
             
-            if (block.ts) { 
-                lastBlockTimestamp = Math.floor(new Date(block.ts.replace(' ', 'T') + 'Z').getTime() / 1000);
-                updateTimeSince();
+            if (chart.data.labels.length > 288) {
+                chart.data.labels.shift();
+                chart.data.datasets.forEach(d => d.data.shift());
             }
+            chart.update();
 
-            const target = parseFloat(block.sharelog_window || 0);
-            let cum = 0, bWin = 0;
-            for (const b of (bData.result?.blocks || [])) { cum += parseFloat(b.accepted_shares || 0); if (cum >= target) break; bWin++; }
-            document.getElementById('p-blocks').innerText = bWin + " Blocks";
+            // Save state to survive refresh
+            const state = {
+                labels: chart.data.labels,
+                h5: chart.data.datasets[0].data,
+                h3: chart.data.datasets[1].data,
+                h24: chart.data.datasets[2].data,
+                u: s5.u
+            };
+            localStorage.setItem(DB_KEY, JSON.stringify(state));
 
-            document.getElementById('t_unpaid').innerText = (u.unpaid/1e8).toFixed(8);
-            document.getElementById('t_usd').innerText = "$" + ((u.unpaid/1e8) * price).toFixed(2);
-            document.getElementById('t_est').innerText = (u.estimated_earn_next_block/1e8).toFixed(8);
-            document.getElementById('t_shares').innerText = (u.shares_in_tides/1e9).toFixed(2) + "G";
-
-            let t5=0, t3=0, t24=0, active=0;
-            const ws = hrData.result?.workers || hrData.workers || {};
-            document.getElementById('worker-table').innerHTML = Object.keys(ws).map(n => {
-                const s = Array.isArray(ws[n]) ? ws[n][0] : ws[n];
-                const h5 = parseFloat(s.hashrate_300s||0);
-                t5 += h5; t3 += parseFloat(s.hashrate_10800s||0); t24 += parseFloat(s.hashrate_86400s||0);
-                if(h5 > 0) active++;
-                return `<tr><td><b>${n}</b></td><td>${(h5/1e12).toFixed(2)}</td><td>${((s.hashrate_10800s||0)/1e12).toFixed(2)}</td><td>${((s.hashrate_86400s||0)/1e12).toFixed(2)}</td><td style="color:${h5>0?'var(--ok)':'var(--dead)'}">● ${h5>0?'ACTIVE':'DEAD'}</td></tr>`;
-            }).join('');
-
-            document.getElementById('t_hr').innerText = (t5/1e15).toFixed(2) + " PH/s";
-            document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
-
-            const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-            liveChart.data.labels.push(time);
-            liveChart.data.datasets[0].data.push((t5/1e15).toFixed(2));
-            liveChart.data.datasets[1].data.push(active);
-            if(liveChart.data.labels.length > 50) { 
-                liveChart.data.labels.shift(); 
-                liveChart.data.datasets[0].data.shift(); 
-                liveChart.data.datasets[1].data.shift();
-            }
-            liveChart.update();
-            if (!window.tablesLoaded) { fetchTables(); window.tablesLoaded = true; }
-        } catch (e) {}
+        } catch (e) { console.error("Critical Update Failure:", e); }
     }
 
-    function init() {
-        histChart = new Chart(document.getElementById('histChart'), { type: 'line', data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', fill: true, backgroundColor: 'rgba(88,166,255,0.1)' }] }, options: { responsive: true, maintainAspectRatio: false } });
-        liveChart = new Chart(document.getElementById('liveChart'), { 
-            type: 'line', 
-            data: { labels: [], datasets: [
-                { label: 'PH/s', data: [], borderColor: '#58a6ff', tension: 0.3 },
-                { label: 'Miners', data: [], borderColor: '#ff7b72', tension: 0.3, yAxisID: 'y1' }
-            ]}, 
-            options: { 
-                responsive: true, 
-                maintainAspectRatio: false,
-                scales: { y1: { position: 'right', grid: { display: false }, ticks: { precision: 0 } } }
-            } 
-        });
-        fetchDeepHistory();
+    if (WALLET) { 
+        initChart(); 
         update(); 
-        setInterval(update, 60000);
-        setInterval(updateTimeSince, 10000);
+        setInterval(update, 300000); 
     }
-    if (WALLET) init();
 </script>
 </body>
 </html>
