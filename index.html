@@ -9,27 +9,21 @@
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; }
         .container { max-width: 1200px; margin: auto; }
         #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-        
-        /* Updated Pool Status Bar */
         .pool-status { background: #1c2128; border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; flex-wrap: wrap; gap: 10px; }
         .pool-status .stat-item { display: flex; align-items: center; gap: 6px; }
         .pool-status span { color: var(--accent); font-weight: bold; }
         .pool-label { color: #8b949e; text-transform: uppercase; font-size: 0.65rem; font-weight: 700; margin-right: 4px; }
-        
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 20px; }
         .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; }
         .label { font-size: 0.65rem; color: #8b949e; text-transform: uppercase; font-weight: 700; }
         .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; }
         .sub-value { font-size: 0.8rem; margin-top: 4px; opacity: 0.8; }
-        
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 25px; }
         .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 320px; margin-bottom: 20px; }
-        
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; cursor: pointer; }
         td { padding: 12px; border-bottom: 1px solid var(--border); font-family: monospace; font-size: 0.85rem; }
         h3 { font-size: 0.85rem; color: var(--accent); padding: 15px; margin: 0; background: #1c2128; border-bottom: 1px solid var(--border); text-transform: uppercase; }
-        
         input { width: 340px; padding: 12px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
         button { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; }
     </style>
@@ -130,13 +124,37 @@
             <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td></tr>`).join('');
     }
 
+    async function backfillHistory() {
+        try {
+            const res = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_user_report/${WALLET}`));
+            const data = await res.json();
+            const report = data.result?.report || [];
+            
+            // Filter out 0 hashrate days and map to PH/s
+            const backfill = report
+                .filter(day => parseFloat(day.hashrate_avg_24hr_thsec) > 0)
+                .map(day => ({
+                    label: day.date.split('-').slice(1).join('/'), // MM/DD format
+                    value: (parseFloat(day.hashrate_avg_24hr_thsec) / 1000).toFixed(2)
+                }));
+
+            if (backfill.length > 0) {
+                hChart.data.labels = backfill.map(b => b.label);
+                hChart.data.datasets[0].data = backfill.map(b => b.value);
+                hChart.data.datasets[1].data = backfill.map(() => null); // No worker count for historical data
+                hChart.update();
+            }
+        } catch (e) { console.error("History backfill failed", e); }
+    }
+
     async function update() {
         if (!WALLET) return;
         document.getElementById('auth-overlay').style.display = 'none';
 
         try {
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
-            const price = parseFloat((await priceRes.json()).data.amount);
+            const priceData = await priceRes.json();
+            const price = parseFloat(priceData.data.amount);
 
             const [hrRes, uRes, earnRes, poolRes, poolHrRes] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
@@ -152,21 +170,18 @@
             const poolData = await poolRes.json();
             const poolHrData = await poolHrRes.json();
 
-            // 1. Pool Status Banner Logic
+            // Pool UI Update
             const lastPoolBlock = poolData.result?.blocks?.[0];
             if (lastPoolBlock) {
                 document.getElementById('pool-height').innerText = "#" + lastPoolBlock.height;
                 document.getElementById('pool-finder').innerText = lastPoolBlock.username.substring(0,8) + "..." + (lastPoolBlock.workername ? (" / " + lastPoolBlock.workername) : "");
                 document.getElementById('pool-time').innerText = timeAgo(lastPoolBlock.ts + "Z");
             }
-
-            // Global Pool Hashrate (300s) formatted to EH/s
             if (poolHrData.result?.pool_300s) {
-                const ehs = (parseFloat(poolHrData.result.pool_300s) / 1e18).toFixed(2);
-                document.getElementById('pool-hr-global').innerText = ehs + " EH/s";
+                document.getElementById('pool-hr-global').innerText = (parseFloat(poolHrData.result.pool_300s) / 1e18).toFixed(2) + " EH/s";
             }
 
-            // 2. Worker Processing
+            // User Hashrate Logic
             const workers = hrData.result?.workers || hrData.workers || {};
             let t5=0, t3=0, t24=0, activeCount=0;
             lastWorkers = Object.keys(workers).map(name => {
@@ -181,54 +196,56 @@
             document.getElementById('t_hr').innerText = (t5/1e15).toFixed(2) + " PH/s";
             document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
 
-            // 3. Financials (BTC)
+            // Card Stats
             const unpaidBTC = parseFloat(u.unpaid||0);
             document.getElementById('t_unpaid').innerText = unpaidBTC.toFixed(8);
             document.getElementById('t_usd').innerText = "$" + (unpaidBTC * price).toFixed(2);
             document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block||0).toFixed(8);
             document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides || 0) / 1e9).toFixed(2) + "G Shares";
 
-            // 4. Earnings Table (BTC)
+            // Monthly Table
             const earnings = earnData.result?.report || [];
             if (earnings.length > 0) {
-                const sorted = earnings
-                    .filter(b => b.Blockheight !== "-1")
-                    .sort((a,b) => parseInt(b.Blockheight) - parseInt(a.Blockheight))
-                    .slice(0, 15);
-
-                document.getElementById('reward-table').innerHTML = sorted.map(b => `
-                    <tr>
-                        <td><b>#${b.Blockheight}</b></td>
-                        <td style="color:var(--ok)">${toBTC(b.NetUserRwd)}</td>
-                        <td style="color:#8b949e; font-size:0.75rem">${b.TimeUTC.replace('T', ' ').split('.')[0]}</td>
-                    </tr>
-                `).join('');
+                const sorted = earnings.filter(b => b.Blockheight !== "-1").sort((a,b) => parseInt(b.Blockheight) - parseInt(a.Blockheight)).slice(0, 15);
+                document.getElementById('reward-table').innerHTML = sorted.map(b => `<tr><td><b>#${b.Blockheight}</b></td><td style="color:var(--ok)">${toBTC(b.NetUserRwd)}</td><td style="color:#8b949e; font-size:0.75rem">${b.TimeUTC.replace('T', ' ').split('.')[0]}</td></tr>`).join('');
             }
 
-            // 5. Graph Update
+            // Real-time Graph Update
             const ts = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
             hChart.data.labels.push(ts);
             hChart.data.datasets[0].data.push((t5/1e15).toFixed(2));
             hChart.data.datasets[1].data.push(activeCount);
-            if(hChart.data.labels.length > 30) { 
+            
+            // Limit chart size to 50 points to allow for history + live
+            if(hChart.data.labels.length > 50) { 
                 hChart.data.labels.shift(); 
                 hChart.data.datasets[0].data.shift(); 
                 hChart.data.datasets[1].data.shift(); 
             }
             hChart.update();
 
+            // Store live sessions only
+            const liveHistory = {
+                labels: hChart.data.labels,
+                hr: hChart.data.datasets[0].data,
+                workers: hChart.data.datasets[1].data
+            };
+            localStorage.setItem('graph_history', JSON.stringify(liveHistory));
+
         } catch (e) { console.error(e); }
     }
 
-    function init() {
+    async function init() {
         const ctx = document.getElementById('multiChart').getContext('2d');
+        const saved = JSON.parse(localStorage.getItem('graph_history') || '{"labels":[], "hr":[], "workers":[]}');
+
         hChart = new Chart(ctx, {
             type: 'line',
             data: { 
-                labels: [], 
+                labels: saved.labels, 
                 datasets: [
-                    { label: 'User PH/s', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', yAxisID: 'y', fill: true, tension: 0.3, pointRadius: 0 },
-                    { label: 'Active Workers', data: [], borderColor: '#ff7b72', borderDash: [5, 5], yAxisID: 'y1', fill: false, tension: 0, pointRadius: 2 }
+                    { label: 'User PH/s', data: saved.hr, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', yAxisID: 'y', fill: true, tension: 0.3, pointRadius: 0 },
+                    { label: 'Active Workers', data: saved.workers, borderColor: '#ff7b72', borderDash: [5, 5], yAxisID: 'y1', fill: false, tension: 0, pointRadius: 2 }
                 ] 
             },
             options: { 
@@ -241,7 +258,14 @@
                 plugins: { legend: { labels: { color: '#c9d1d9', font: { size: 10 } } } }
             }
         });
-        update(); setInterval(update, 60000);
+
+        // If no saved session, backfill from API
+        if (saved.labels.length === 0) {
+            await backfillHistory();
+        }
+
+        update(); 
+        setInterval(update, 60000);
     }
     if (WALLET) init();
 </script>
