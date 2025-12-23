@@ -3,26 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NGU TECH - Multi-Scale Dashboard</title>
+    <title>NGU TECH - Status Restored</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; --warn: #d29922; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
         .container { max-width: 1200px; margin: auto; }
+        
         #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
         .login-card { background: var(--card); padding: 30px; border-radius: 12px; border: 1px solid var(--border); text-align: center; width: 90%; max-width: 400px; }
         input { width: 100%; padding: 12px; margin: 15px 0; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 6px; box-sizing: border-box; }
         button { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; }
+
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 25px; }
         .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; }
         .label { font-size: 0.8rem; color: #8b949e; text-transform: uppercase; font-weight: 600; }
         .value { font-size: 1.8rem; font-weight: bold; color: white; margin-top: 8px; }
         .sub-value { font-size: 0.85rem; color: var(--accent); margin-top: 5px; }
+
         .chart-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 25px; height: 450px; }
+        
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; padding: 15px; background: #1c2128; color: #8b949e; font-size: 0.75rem; text-transform: uppercase; }
         td { padding: 15px; border-bottom: 1px solid var(--border); font-family: monospace; font-size: 0.9rem; }
+
+        /* Status Colors */
+        .status-online { color: var(--ok); font-weight: bold; }
+        .status-offline { color: var(--err); font-weight: bold; }
         .logout { float: right; color: var(--err); cursor: pointer; font-size: 0.75rem; font-weight: bold; padding: 10px; }
     </style>
 </head>
@@ -30,14 +38,14 @@
 
 <div id="auth-overlay">
     <div class="login-card">
-        <h2 style="margin-top:0">Miner Access</h2>
+        <h2>Miner Access</h2>
         <input type="text" id="wallet-input" placeholder="Wallet Address (bc1q...)">
         <button onclick="login()">Launch Dashboard</button>
     </div>
 </div>
 
 <div class="container">
-    <div style="overflow: auto;"><span class="logout" onclick="logout()">LOGOUT & CLEAR DATA</span></div>
+    <div style="overflow: auto;"><span class="logout" onclick="logout()">LOGOUT & CLEAR</span></div>
     <div class="grid">
         <div class="card">
             <div class="label">Live Hashrate</div>
@@ -87,14 +95,14 @@
     function logout() { localStorage.clear(); location.reload(); }
 
     function initChart() {
-        const saved = JSON.parse(localStorage.getItem('miner_history_v7') || '{"labels":[], "h5":[], "h3":[], "h24":[], "u": "TH/s"}');
+        const saved = JSON.parse(localStorage.getItem('miner_history_v8') || '{"labels":[], "h5":[], "h3":[], "h24":[], "u": "TH/s"}');
         const ctx = document.getElementById('hashrateChart').getContext('2d');
         chart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: saved.labels,
                 datasets: [
-                    { label: '5m Hashrate', data: saved.h5, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, tension: 0.3 },
+                    { label: '5m Hashrate', data: saved.h5, borderColor: '#58a6ff', backgroundColor: 'rgba(88, 166, 255, 0.1)', fill: true, tension: 0.3 },
                     { label: '3h Hashrate', data: saved.h3, borderColor: '#d29922', fill: false, borderWidth: 2, pointRadius: 0 },
                     { label: '24h Hashrate', data: saved.h24, borderColor: '#3fb950', borderDash: [5, 5], fill: false, borderWidth: 2, pointRadius: 0 }
                 ]
@@ -140,7 +148,10 @@
                 const r3 = parseFloat(s.hashrate_10800s) || 0;
                 const r24 = parseFloat(s.hashrate_86400s) || 0;
                 t5 += r5; t3 += r3; t24 += r24;
-                return { name, h5: (r5/1e12).toFixed(2), h3: (r3/1e12).toFixed(2), h24: (r24/1e12).toFixed(2), online: r5 > 0 };
+                
+                // Red/Green logic: If 5m hashrate is 0, they are offline
+                const isOnline = r5 > 0;
+                return { name, h5: (r5/1e12).toFixed(2), h3: (r3/1e12).toFixed(2), h24: (r24/1e12).toFixed(2), online: isOnline };
             });
 
             const s5 = formatHashrate(t5);
@@ -163,12 +174,18 @@
                 chart.data.datasets.forEach(d => d.data.shift());
             }
             chart.update();
-            localStorage.setItem('miner_history_v7', JSON.stringify({ 
+            localStorage.setItem('miner_history_v8', JSON.stringify({ 
                 labels: chart.data.labels, h5: chart.data.datasets[0].data, h3: chart.data.datasets[1].data, h24: chart.data.datasets[2].data, u: s5.u 
             }));
 
             document.getElementById('w-body').innerHTML = workers.map(w => `
-                <tr><td><b>${w.name}</b></td><td>${w.h5}</td><td>${w.h3}</td><td>${w.h24}</td><td>${w.online?'●':'○'}</td></tr>
+                <tr>
+                    <td><b>${w.name}</b></td>
+                    <td>${w.h5}</td>
+                    <td>${w.h3}</td>
+                    <td>${w.h24}</td>
+                    <td class="${w.online ? 'status-online' : 'status-offline'}">${w.online ? 'ONLINE' : 'OFFLINE'}</td>
+                </tr>
             `).join('');
         } catch (e) { console.error("Update Error:", e); }
     }
