@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>NGU TECH - Stacked Dashboard</title>
+    <title>NGU TECH - Ultimate Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --dead: #f85149; }
@@ -55,7 +55,7 @@
             <thead>
                 <tr><th>Block Height</th><th>Net Reward (Sats)</th><th>Fee Reward (Sats)</th><th>Date (UTC)</th></tr>
             </thead>
-            <tbody id="reward-table"><tr><td colspan="4">Loading Monthly Report...</td></tr></tbody>
+            <tbody id="reward-table"><tr><td colspan="4">Waiting for API...</td></tr></tbody>
         </table>
     </div>
 
@@ -115,9 +115,11 @@
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const price = parseFloat((await priceRes.json()).data.amount);
 
+            // Format YYYY-MM for the monthly report endpoint
             const now = new Date();
             const yearMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
 
+            // Updated Fetching Logic for the provided URL structure
             const [hrRes, uRes, earnRes] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
@@ -126,7 +128,10 @@
 
             const hrData = await hrRes.json();
             const u = (await uRes.json()).result || {};
-            const earnings = await earnRes.json();
+            
+            // Handle raw array response for earnings
+            let earnings = await earnRes.json();
+            if (earnings.result) earnings = earnings.result;
 
             // 1. Worker List & Averages
             const workers = hrData.result?.workers || hrData.workers || {};
@@ -144,25 +149,27 @@
             document.getElementById('t_hr').innerText = (t5/1e15).toFixed(2) + " PH/s";
             document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
 
-            // 2. Financials
+            // 2. Unpaid & Estimates
             const unpaidBTC = parseFloat(u.unpaid||0);
             document.getElementById('t_unpaid').innerText = Math.floor(unpaidBTC * 1e8).toLocaleString();
             document.getElementById('t_usd').innerText = "$" + (unpaidBTC * price).toFixed(2);
             document.getElementById('t_est').innerText = Math.floor(parseFloat(u.estimated_earn_next_block||0) * 1e8).toLocaleString() + " Sats";
             document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides || 0) / 1e9).toFixed(2) + "G Shares";
 
-            // 3. Monthly Earnings Report
-            const blockList = Array.isArray(earnings) ? earnings : (earnings.result || []);
-            const sortedBlocks = blockList.sort((a,b) => b.Blockheight - a.Blockheight).slice(0, 10);
-            
-            document.getElementById('reward-table').innerHTML = sortedBlocks.map(b => `
-                <tr>
-                    <td><b>#${b.Blockheight}</b></td>
-                    <td style="color:var(--ok)">${parseInt(b.NetUserRwd).toLocaleString()}</td>
-                    <td>${parseInt(b.GrossUserXctnRwd).toLocaleString()}</td>
-                    <td style="color:#8b949e">${b.TimeUTC.split('T')[0]}</td>
-                </tr>
-            `).join('') || "<tr><td colspan='4'>No data for this month</td></tr>";
+            // 3. Earnings Table Processing
+            if (Array.isArray(earnings) && earnings.length > 0) {
+                const sortedBlocks = earnings.sort((a,b) => b.Blockheight - a.Blockheight).slice(0, 10);
+                document.getElementById('reward-table').innerHTML = sortedBlocks.map(b => `
+                    <tr>
+                        <td><b>#${b.Blockheight}</b></td>
+                        <td style="color:var(--ok)">${parseInt(b.NetUserRwd).toLocaleString()}</td>
+                        <td>${parseInt(b.GrossUserXctnRwd).toLocaleString()}</td>
+                        <td style="color:#8b949e">${b.TimeUTC.split('T')[0]}</td>
+                    </tr>
+                `).join('');
+            } else {
+                document.getElementById('reward-table').innerHTML = "<tr><td colspan='4'>No data for " + yearMonth + "</td></tr>";
+            }
 
             // 4. Graph Update
             const timeStr = now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
@@ -171,12 +178,14 @@
             if(hChart.data.labels.length > 25) { hChart.data.labels.shift(); hChart.data.datasets[0].data.shift(); }
             hChart.update();
 
-        } catch (e) { console.error("Update failed", e); }
+        } catch (e) { 
+            console.error("API Error", e);
+            document.getElementById('reward-table').innerHTML = "<tr><td colspan='4' style='color:var(--dead)'>Error Loading Report</td></tr>";
+        }
     }
 
     function init() {
-        const ctx = document.getElementById('hashrateChart').getContext('2d');
-        hChart = new Chart(ctx, {
+        hChart = new Chart(document.getElementById('hashrateChart'), {
             type: 'line',
             data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.05)', fill: true, tension: 0.4, pointRadius: 0 }] },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#30363d' } }, x: { grid: { display: false } } } }
