@@ -41,7 +41,7 @@
         <div class="stat-item"><span class="pool-label">Pool HR:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
-        <div class="stat-item"><span class="pool-label">TIDES Luck:</span> <span id="p-luck" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Blocks in Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
         <div id="p-time" style="color:#8b949e">Loading...</div>
     </div>
 
@@ -144,9 +144,9 @@
         const minutes = Math.floor(secondsAgo / 60);
         if (minutes < 60) return `${minutes}m ago`;
         const hours = Math.floor(minutes / 60);
-        if (hours < 24) return `${hours}h ago`;
+        if (hours < 24) return `${hours}h ${minutes % 60}m ago`;
         const days = Math.floor(hours / 24);
-        return `${days}d ago`;
+        return `${days}d ${hours % 24}h ago`;
     }
 
     function updateTimeSince() {
@@ -238,17 +238,19 @@
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const price = parseFloat((await priceRes.json()).data.amount);
 
-            const [hrRes, uRes, poolRes, pHRRes] = await Promise.all([
+            const [hrRes, uRes, poolRes, pHRRes, blocksRes] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`))
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=30`))
             ]);
 
             const hrData = await hrRes.json();
             const u = (await uRes.json()).result || {};
             const pData = await poolRes.json();
             const pHR = await pHRRes.json();
+            const blocksData = await blocksRes.json();
 
             const block = pData.result?.blocks?.[0] || {};
             document.getElementById('p-height').innerText = "#" + (block.height || "...");
@@ -260,16 +262,18 @@
             }
             updateTimeSince();
 
-            // Correct TIDES Luck
-            if (block.sharelog_window && block.network_difficulty) {
-                const sharelog = parseFloat(block.sharelog_window);
-                const diff = parseFloat(block.network_difficulty);
-                const b32 = Math.pow(2, 32);
-                const luck = (diff * b32 / sharelog) * 100;
-                document.getElementById('p-luck').innerText = luck.toFixed(1) + "%";
-            } else {
-                document.getElementById('p-luck').innerText = "...";
+            // Blocks in TIDES Window (cumulative shares method)
+            const sharelog = parseFloat(block.sharelog_window || 0);
+            let k = 0;
+            let cum = 0;
+            const blocks = blocksData.result?.blocks || [];
+            blocks.sort((a, b) => b.height - a.height); // Newest first
+            for (const b of blocks) {
+                cum += parseFloat(b.accepted_shares || 0);
+                k++;
+                if (cum >= sharelog) break;
             }
+            document.getElementById('p-blocks').innerText = k;
 
             const unpaid = parseFloat(u.unpaid||0);
             document.getElementById('t_unpaid').innerText = unpaid.toFixed(8);
@@ -282,7 +286,7 @@
             lastWorkers = Object.keys(ws).map(n => {
                 const s = Array.isArray(ws[n]) ? ws[n][0] : ws[n];
                 const h5 = parseFloat(s.hashrate_300s||0);
-                t5 += h5; t3 += parseFloat(s.hashrate_10800s||0); t24 += parseFloat(s.hashrate_86400s||0);
+                t5 += h5; t3 += parseFloat(s.hashrate_10800s||0); t24 = parseFloat(s.hashrate_86400s||0);
                 if(h5 > 0) active++;
                 return { name: n, h5: h5/1e12, h3: (s.hashrate_10800s||0)/1e12, h24: (s.hashrate_86400s||0)/1e12, status: h5 > 0 ? 'ACTIVE' : 'INACTIVE' };
             });
