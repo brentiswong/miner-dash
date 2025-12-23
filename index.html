@@ -33,7 +33,7 @@
     <div class="pool-status">
         <div><span class="label">Pool Hashrate:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
         <div><span class="label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
-        <div><span class="label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
+        <div><span class="label">Finder (Coinbase Tag):</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
         <div id="p-time" style="color:#8b949e">Loading...</div>
     </div>
 
@@ -44,7 +44,7 @@
     </div>
 
     <div class="chart-grid">
-        <div class="chart-box"><h3>History</h3><canvas id="histChart"></canvas></div>
+        <div class="chart-box"><h3>24H History</h3><canvas id="histChart"></canvas></div>
         <div class="chart-box"><h3>Live Hashrate</h3><canvas id="liveChart"></canvas></div>
     </div>
 
@@ -64,15 +64,14 @@
 
     function login() { const v = document.getElementById('wallet-input').value.trim(); if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } }
 
-    async function getPoolName(height) {
+    async function getCoinbaseTag(height) {
         try {
-            // Step 1: Get Hash from Height
-            const hRes = await fetch(`https://mempool.space/api/block-height/${height}`);
-            const hash = await hRes.text();
-            // Step 2: Get Block Details (using direct URL to avoid CORS on metadata)
-            const dRes = await fetch(`https://mempool.space/api/block/${hash}`);
-            const data = await dRes.json();
-            return data.extras?.pool?.name || null;
+            // Fetch recent OCEAN blocks from mempool.space
+            const res = await fetch(`https://mempool.space/api/v1/mining/pool/ocean/blocks`);
+            const blocks = await res.json();
+            // Find the block that matches the current height
+            const match = blocks.find(b => b.height === height);
+            return match ? match.minerName : null;
         } catch (e) { return null; }
     }
 
@@ -97,10 +96,10 @@
             document.getElementById('p-height').innerText = "#" + (block.height || "...");
             document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
 
-            // Update Finder with correct Mempool Logic
+            // Resolve the Coinbase Tag using the OCEAN blocks API from mempool
             if (block.height) {
-                getPoolName(block.height).then(name => {
-                    document.getElementById('p-finder').innerText = name || block.username || "OCEAN Miner";
+                getCoinbaseTag(block.height).then(tag => {
+                    document.getElementById('p-finder').innerText = tag || block.username || "OCEAN Miner";
                 });
             }
 
@@ -120,24 +119,30 @@
             const currentPH = (t5/1e15).toFixed(2);
             document.getElementById('t_hr').innerText = currentPH + " PH/s";
 
-            // Fix Live Chart Update
             if (liveChart) {
                 const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                 liveChart.data.labels.push(now);
                 liveChart.data.datasets[0].data.push(currentPH);
-                if(liveChart.data.labels.length > 30) { liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); }
+                if(liveChart.data.labels.length > 30) { 
+                    liveChart.data.labels.shift(); 
+                    liveChart.data.datasets[0].data.shift(); 
+                }
                 liveChart.update();
             }
 
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Update error:", e); }
     }
 
     window.onload = () => {
         const ctxL = document.getElementById('liveChart').getContext('2d');
         liveChart = new Chart(ctxL, {
             type: 'line',
-            data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', tension: 0.4 }] },
-            options: { responsive: true, maintainAspectRatio: false }
+            data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', tension: 0.4, fill: false }] },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false,
+                animation: { duration: 0 } // Faster updates
+            }
         });
 
         const ctxH = document.getElementById('histChart').getContext('2d');
@@ -147,7 +152,10 @@
             options: { responsive: true, maintainAspectRatio: false }
         });
 
-        if (WALLET) { update(); setInterval(update, 60000); }
+        if (WALLET) { 
+            update(); 
+            setInterval(update, 60000); 
+        }
     };
 </script>
 </body>
