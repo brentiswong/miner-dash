@@ -10,9 +10,11 @@
         .container { max-width: 1200px; margin: auto; }
         #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
         
-        /* Last Block Bar */
-        .pool-status { background: #1c2128; border: 1px solid var(--border); border-radius: 8px; padding: 10px 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; }
+        /* Updated Pool Status Bar */
+        .pool-status { background: #1c2128; border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; flex-wrap: wrap; gap: 10px; }
+        .pool-status .stat-item { display: flex; align-items: center; gap: 6px; }
         .pool-status span { color: var(--accent); font-weight: bold; }
+        .pool-label { color: #8b949e; text-transform: uppercase; font-size: 0.65rem; font-weight: 700; margin-right: 4px; }
         
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 20px; }
         .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; }
@@ -38,14 +40,15 @@
 
 <div class="container">
     <div class="pool-status" id="pool-bar">
-        <div>Ocean Pool Last Block: <span id="pool-height">...</span></div>
-        <div>Found By: <span id="pool-finder">...</span></div>
+        <div class="stat-item"><span class="pool-label">Pool Hashrate</span> <span id="pool-hr-global">...</span></div>
+        <div class="stat-item"><span class="pool-label">Last Block</span> <span id="pool-height">...</span></div>
+        <div class="stat-item"><span class="pool-label">Finder</span> <span id="pool-finder">...</span></div>
         <div id="pool-time" style="color:#8b949e">Loading...</div>
     </div>
 
     <div class="grid">
         <div class="card">
-            <div class="label">Hashrate (5m / 3h / 24h)</div>
+            <div class="label">User Hashrate (5m / 3h / 24h)</div>
             <div id="t_hr" class="value">0.00 PH/s</div>
             <div id="t_hr_avg" class="sub-value" style="color:var(--accent)">0.00 / 0.00 PH/s</div>
         </div>
@@ -64,7 +67,7 @@
     <div class="chart-box"><canvas id="multiChart"></canvas></div>
 
     <div class="table-container">
-        <h3>Monthly Earnings Report</h3>
+        <h3>User Monthly Earnings Report</h3>
         <table>
             <thead>
                 <tr><th>Block Height</th><th>Net Earnings (BTC)</th><th>Date (UTC)</th></tr>
@@ -135,24 +138,32 @@
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const price = parseFloat((await priceRes.json()).data.amount);
 
-            const [hrRes, uRes, earnRes, poolRes] = await Promise.all([
+            const [hrRes, uRes, earnRes, poolRes, poolHrRes] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_earnings_report/${WALLET}`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`))
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`))
             ]);
 
             const hrData = await hrRes.json();
             const u = (await uRes.json()).result || {};
             const earnData = await earnRes.json();
             const poolData = await poolRes.json();
+            const poolHrData = await poolHrRes.json();
 
-            // 1. Pool Status Bar
+            // 1. Pool Status Banner Logic
             const lastPoolBlock = poolData.result?.blocks?.[0];
             if (lastPoolBlock) {
                 document.getElementById('pool-height').innerText = "#" + lastPoolBlock.height;
                 document.getElementById('pool-finder').innerText = lastPoolBlock.username.substring(0,8) + "..." + (lastPoolBlock.workername ? (" / " + lastPoolBlock.workername) : "");
                 document.getElementById('pool-time').innerText = timeAgo(lastPoolBlock.ts + "Z");
+            }
+
+            // Global Pool Hashrate (300s) formatted to EH/s
+            if (poolHrData.result?.pool_300s) {
+                const ehs = (parseFloat(poolHrData.result.pool_300s) / 1e18).toFixed(2);
+                document.getElementById('pool-hr-global').innerText = ehs + " EH/s";
             }
 
             // 2. Worker Processing
@@ -216,7 +227,7 @@
             data: { 
                 labels: [], 
                 datasets: [
-                    { label: 'PH/s', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', yAxisID: 'y', fill: true, tension: 0.3, pointRadius: 0 },
+                    { label: 'User PH/s', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', yAxisID: 'y', fill: true, tension: 0.3, pointRadius: 0 },
                     { label: 'Active Workers', data: [], borderColor: '#ff7b72', borderDash: [5, 5], yAxisID: 'y1', fill: false, tension: 0, pointRadius: 2 }
                 ] 
             },
