@@ -2,11 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>NGU TECH - Pro BTC Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --worker-line: #ff7b72; --border: #30363d; --ok: #3fb950; --dead: #f85149; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; }
         .container { max-width: 1200px; margin: auto; }
         #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
         .pool-status { background: #1c2128; border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; flex-wrap: wrap; gap: 10px; }
@@ -28,13 +29,20 @@
         th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; cursor: pointer; }
         td { padding: 12px; border-bottom: 1px solid var(--border); }
         h3 { font-size: 0.85rem; color: var(--accent); padding: 15px; margin: 0; background: #1c2128; border-bottom: 1px solid var(--border); text-transform: uppercase; }
-        input { width: 340px; padding: 12px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
+        input { width: 320px; padding: 12px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; max-width: 90%; }
         button#login-btn { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH Dashboard</h2><input type="text" id="wallet-input" placeholder="Enter BTC Address"><br><br><button id="login-btn" onclick="login()">Sync Dashboard</button></div></div>
+<div id="auth-overlay">
+    <div style="text-align:center">
+        <h2>NGU TECH Dashboard</h2>
+        <input type="text" id="wallet-input" placeholder="Enter BTC Address">
+        <br><br>
+        <button id="login-btn" onclick="login()">Sync Dashboard</button>
+    </div>
+</div>
 
 <div class="container">
     <div class="pool-status">
@@ -69,7 +77,7 @@
                 <button class="btn-sm" onclick="filterHist(30)">1M</button>
                 <button class="btn-sm" onclick="filterHist(180)">6M</button>
                 <button class="btn-sm" onclick="filterHist(365)">1Y</button>
-                <button class="btn-sm active" onclick="filterHist(0)">ALL</button>
+                <button class="btn-sm active" id="btn-all" onclick="filterHist(0)">ALL</button>
             </div>
             <h3 style="background:transparent; padding:0">Historical PH/s</h3>
             <canvas id="histChart"></canvas>
@@ -117,22 +125,34 @@
     }
 
     function renderWorkers() {
-        const sorted = [...lastWorkers].sort((a,b) => currentSort.asc ? (a[currentSort.key] > b[currentSort.key] ? 1 : -1) : (a[currentSort.key] < b[currentSort.key] ? 1 : -1));
+        const sorted = [...lastWorkers].sort((a,b) => {
+            let valA = a[currentSort.key];
+            let valB = b[currentSort.key];
+            if (typeof valA === 'string') {
+                return currentSort.asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            }
+            return currentSort.asc ? valA - valB : valB - valA;
+        });
+        
         document.getElementById('worker-table').innerHTML = sorted.map(m => `
-            <tr><td><b>${m.name}</b></td><td>${m.h5.toFixed(2)}</td><td>${m.h3.toFixed(2)}</td><td>${m.h24.toFixed(2)}</td>
-            <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td></tr>`).join('');
+            <tr>
+                <td><b>${m.name}</b></td>
+                <td>${m.h5.toFixed(2)}</td>
+                <td>${m.h3.toFixed(2)}</td>
+                <td>${m.h24.toFixed(2)}</td>
+                <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td>
+            </tr>`).join('');
     }
 
-    // --- History Speed Upgrade: Uses history.json instead of 18 monthly calls ---
     async function loadHistoryCache() {
         try {
             const res = await fetch('history.json');
             const data = await res.json();
-            fullHistData = data.result.report
+            fullHistData = (data.result?.report || [])
                 .filter(d => parseFloat(d.hashrate_avg_24hr_thsec) > 0)
                 .sort((a,b) => new Date(a.date) - new Date(b.date));
             filterHist(0);
-        } catch(e) { console.warn("Cache not found, falling back to live fetch."); }
+        } catch(e) { console.error("History Cache Load Failed", e); }
     }
 
     function filterHist(days) {
@@ -159,76 +179,105 @@
             ]);
 
             const hrData = await hrRes.json();
-            const u = (await uRes.json()).result || {};
+            const uData = await uRes.json();
             const pData = await poolRes.json();
-            const pHR = await pHRRes.json();
+            const pHRData = await pHRRes.json();
 
-            // Pool UI & Finder
-            const block = pData.result?.blocks?.[0] || {};
-            document.getElementById('p-height').innerText = "#" + (block.height || "...");
-            document.getElementById('p-finder').innerText = block.username ? (block.username.substring(0,8)) : "...";
-            document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
+            const u = uData.result || {};
             
-            // iPad-Safe Block Timer
-            if (block.ts) {
-                const baseTs = block.ts.split('.')[0].replace('T', ' '); 
-                const blockTime = new Date(baseTs + " UTC").getTime();
-                const diff = Math.floor((Date.now() - blockTime) / 1000);
-                if (diff < 0 || isNaN(diff)) document.getElementById('p-time').innerText = "Just now";
-                else if (diff < 3600) document.getElementById('p-time').innerText = Math.floor(diff/60) + "m ago";
-                else document.getElementById('p-time').innerText = Math.floor(diff/3600) + "h ago";
+            // Block Info
+            const blocks = pData.result?.blocks || [];
+            if (blocks.length > 0) {
+                const b = blocks[0];
+                document.getElementById('p-height').innerText = "#" + (b.height || "...");
+                document.getElementById('p-finder').innerText = b.username ? b.username.substring(0,8) : "Pool";
+                
+                if (b.ts) {
+                    const baseTs = b.ts.split('.')[0].replace('T', ' '); 
+                    const blockTime = new Date(baseTs + " UTC").getTime();
+                    const diff = Math.floor((Date.now() - blockTime) / 1000);
+                    if (diff < 0 || isNaN(diff)) document.getElementById('p-time').innerText = "Just now";
+                    else if (diff < 3600) document.getElementById('p-time').innerText = Math.floor(diff/60) + "m ago";
+                    else document.getElementById('p-time').innerText = Math.floor(diff/3600) + "h ago";
+                }
             }
 
-            // Stats
+            document.getElementById('p-hr').innerText = (parseFloat(pHRData.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
+            
+            // Workers Path Fix
+            let t5=0, t3=0, t24=0, active=0;
+            const ws = hrData.result?.workers || hrData.workers || {};
+            
+            lastWorkers = Object.keys(ws).map(n => {
+                const workerObj = ws[n];
+                const s = Array.isArray(workerObj) ? workerObj[0] : workerObj;
+                const h5 = parseFloat(s.hashrate_300s || 0);
+                const h3 = parseFloat(s.hashrate_10800s || 0);
+                const h24 = parseFloat(s.hashrate_86400s || 0);
+                
+                t5 += h5; t3 += h3; t24 += h24;
+                if(h5 > 0) active++;
+
+                return { 
+                    name: n, 
+                    h5: h5/1e12, 
+                    h3: h3/1e12, 
+                    h24: h24/1e12, 
+                    status: h5 > 0 ? 'ACTIVE' : 'INACTIVE' 
+                };
+            });
+
+            renderWorkers();
+            
+            // Card Updates
+            document.getElementById('t_hr').innerText = (t5/1e15).toFixed(2) + " PH/s";
+            document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
+            
             const unpaid = parseFloat(u.unpaid||0);
             document.getElementById('t_unpaid').innerText = unpaid.toFixed(8);
             document.getElementById('t_usd').innerText = "$" + (unpaid * price).toFixed(2);
             document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block||0).toFixed(8);
             document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides||0)/1e9).toFixed(2) + "G";
 
-            // Workers logic
-            let t5=0, t3=0, t24=0, active=0;
-            const ws = hrData.result?.workers || hrData.workers || {};
-            lastWorkers = Object.keys(ws).map(n => {
-                const s = Array.isArray(ws[n]) ? ws[n][0] : ws[n];
-                const h5 = parseFloat(s.hashrate_300s||0);
-                t5 += h5; t3 += parseFloat(s.hashrate_10800s||0); t24 += parseFloat(s.hashrate_86400s||0);
-                if(h5 > 0) active++;
-                return { name: n, h5: h5/1e12, h3: (s.hashrate_10800s||0)/1e12, h24: (s.hashrate_86400s||0)/1e12, status: h5 > 0 ? 'ACTIVE' : 'INACTIVE' };
-            });
-            renderWorkers();
-            document.getElementById('t_hr').innerText = (t5/1e15).toFixed(2) + " PH/s";
-            document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
-
-            // Live Chart Update
-            const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-            liveChart.data.labels.push(time);
+            // Live Chart
+            const timeStr = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            liveChart.data.labels.push(timeStr);
             liveChart.data.datasets[0].data.push((t5/1e15).toFixed(2));
             liveChart.data.datasets[1].data.push(active);
-            if(liveChart.data.labels.length > 1440) { liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); liveChart.data.datasets[1].data.shift(); }
+            if(liveChart.data.labels.length > 100) { 
+                liveChart.data.labels.shift(); 
+                liveChart.data.datasets[0].data.shift(); 
+                liveChart.data.datasets[1].data.shift(); 
+            }
             liveChart.update();
-            localStorage.setItem('live_v4', JSON.stringify({l: liveChart.data.labels, h: liveChart.data.datasets[0].data, w: liveChart.data.datasets[1].data}));
+            localStorage.setItem('live_cache', JSON.stringify({
+                l: liveChart.data.labels, 
+                h: liveChart.data.datasets[0].data, 
+                w: liveChart.data.datasets[1].data
+            }));
 
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Sync Error", e); }
     }
 
     async function init() {
+        // Hist Chart Init
         const histCtx = document.getElementById('histChart').getContext('2d');
         histChart = new Chart(histCtx, {
             type: 'line',
-            data: { labels: [], datasets: [{ label: 'Daily PH/s', data: [], borderColor: '#58a6ff', tension: 0.3, fill: true, backgroundColor: 'rgba(88,166,255,0.1)' }] },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' } } } }
+            data: { labels: [], datasets: [{ label: 'Daily PH/s', data: [], borderColor: '#58a6ff', tension: 0.3, fill: true, backgroundColor: 'rgba(88,166,255,0.1)', pointRadius: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' } }, x: { grid: { display: false } } } }
         });
 
+        // Live Chart Init with LocalStorage Persistence
         const liveCtx = document.getElementById('liveChart').getContext('2d');
-        const s = JSON.parse(localStorage.getItem('live_v4') || '{"l":[], "h":[], "w":[]}');
+        const cache = JSON.parse(localStorage.getItem('live_cache') || '{"l":[], "h":[], "w":[]}');
         liveChart = new Chart(liveCtx, {
             type: 'line',
             data: { 
-                labels: s.l, 
+                labels: cache.l, 
                 datasets: [
-                    { label: 'PH/s', data: s.h, borderColor: '#58a6ff', tension: 0.2, pointRadius: 0 },
-                    { label: 'Miners', data: s.w, borderColor: '#ff7b72', yAxisID: 'y1', pointRadius: 0, borderDash: [5,5] }
+                    { label: 'PH/s', data: cache.h, borderColor: '#58a6ff', tension: 0.2, pointRadius: 0 },
+                    { label: 'Miners', data: cache.w, borderColor: '#ff7b72', yAxisID: 'y1', pointRadius: 0, borderDash: [5,5] }
                 ] 
             },
             options: { 
@@ -241,8 +290,10 @@
         });
 
         await loadHistoryCache();
-        update(); setInterval(update, 60000);
+        update(); 
+        setInterval(update, 60000);
     }
+
     if (WALLET) init();
 </script>
 </body>
