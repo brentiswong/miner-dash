@@ -40,7 +40,7 @@
     <div class="pool-status">
         <div class="stat-item"><span class="pool-label">Pool HR:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
-        <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">TIDES Luck:</span> <span id="p-luck" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Blocks in Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
         <div id="p-time" style="color:#8b949e">Loading...</div>
@@ -141,6 +141,7 @@
     }
 
     function formatTimeAgo(secondsAgo) {
+        if (secondsAgo < 0) return `Just now`;
         if (secondsAgo < 60) return `${Math.floor(secondsAgo)}s ago`;
         const minutes = Math.floor(secondsAgo / 60);
         if (minutes < 60) return `${minutes}m ago`;
@@ -151,10 +152,7 @@
     }
 
     function updateTimeSince() {
-        if (lastBlockTimestamp === 0) {
-            document.getElementById('p-time').innerText = 'Loading...';
-            return;
-        }
+        if (!lastBlockTimestamp) return;
         const now = Math.floor(Date.now() / 1000);
         const ago = now - lastBlockTimestamp;
         document.getElementById('p-time').innerText = formatTimeAgo(ago);
@@ -255,20 +253,19 @@
 
             const block = pData.result?.blocks?.[0] || {};
             document.getElementById('p-height').innerText = "#" + (block.height || "...");
-            document.getElementById('p-finder').innerText = block.username ? (block.username.substring(0,8) + (block.workername ? "."+block.workername : "")) : "...";
             document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
             
             if (block.ts) {
-                lastBlockTimestamp = Math.floor(new Date(block.ts).getTime() / 1000);
+                const cleanTs = block.ts.includes('Z') ? block.ts : block.ts.replace(' ', 'T') + 'Z';
+                lastBlockTimestamp = Math.floor(new Date(cleanTs).getTime() / 1000);
+                updateTimeSince();
             }
-            updateTimeSince();
 
-            // Correct TIDES Luck using blocks sum
             const sharelog = parseFloat(block.sharelog_window || 0);
             let k = 0;
             let cum = 0;
             const blocks = blocksData.result?.blocks || [];
-            blocks.sort((a, b) => b.height - a.height); // Descending
+            blocks.sort((a, b) => b.height - a.height);
             for (const b of blocks) {
                 cum += parseFloat(b.accepted_shares || 0);
                 k++;
