@@ -40,7 +40,7 @@
 
 <div class="container">
     <div class="pool-status">
-        <div class="stat-item"><span class="pool-label">Last Pool Block:</span> <a id="p-link" href="#" target="_blank" style="color:var(--accent); text-decoration:none;"><span id="p-height">#...</span></a></div>
+        <div class="stat-item"><span class="pool-label">Pool Block:</span> <a id="p-link" href="#" target="_blank" style="color:var(--accent); text-decoration:none;"><span id="p-height">#...</span></a></div>
         <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--ok)">...</span></div>
         <div class="stat-item"><span class="pool-label">Value:</span> <span id="p-value" style="color:white">...</span></div>
         <div id="p-time" style="color:#8b949e; font-weight:bold; background: #30363d; padding: 2px 8px; border-radius: 4px;">Loading...</div>
@@ -109,11 +109,15 @@
 
     function getRelativeTime(ts) {
         if (!ts) return "...";
-        const safeTs = ts.includes('Z') ? ts : ts.replace(' ', 'T') + 'Z';
-        const diff = Math.floor((Date.now() - new Date(safeTs).getTime()) / 1000);
-        if (diff < 60) return "Just now";
-        if (diff < 3600) return Math.floor(diff/60) + "m ago";
-        return Math.floor(diff/3600) + "h ago";
+        try {
+            const date = new Date(ts);
+            if (isNaN(date.getTime())) return "...";
+            const diff = Math.floor((Date.now() - date.getTime()) / 1000);
+            if (diff < 60) return "Just now";
+            if (diff < 3600) return Math.floor(diff/60) + "m ago";
+            if (diff < 86400) return Math.floor(diff/3600) + "h ago";
+            return Math.floor(diff/86400) + "d ago";
+        } catch(e) { return "..."; }
     }
 
     async function update() {
@@ -137,35 +141,32 @@
             const earnData = await earnRes.json();
             const u = uData.result || {};
             
-            // 1. Last Pool Block (FIXED NaN and Finder Name)
+            // 1. Latest Pool Block (Using workername + reward_sats)
             const blocks = pData.result?.blocks || [];
             if (blocks.length > 0) {
                 const b = blocks[0];
                 document.getElementById('p-height').innerText = "#" + b.height;
                 document.getElementById('p-link').href = `https://mempool.space/block/${b.height}`;
-                
-                // Show the "Tag" part of the reward address if username is missing
-                const rawAddr = b.reward_address || "";
-                const tag = rawAddr.includes('.') ? rawAddr.split('.')[1] : rawAddr.substring(0,8);
-                document.getElementById('p-finder').innerText = b.username || tag || "Ocean Pool";
-
-                // Fix NaN: Ensure we use 0 if reward/fees are missing
-                const totalReward = (parseFloat(b.reward || 0) + parseFloat(b.fees || 0)) / 1e8;
-                document.getElementById('p-value').innerText = totalReward.toFixed(4) + " BTC";
+                document.getElementById('p-finder').innerText = b.workername || "Ocean Miner";
+                const sats = parseFloat(b.total_reward_sats || 0);
+                document.getElementById('p-value').innerText = (sats / 1e8).toFixed(4) + " BTC";
                 document.getElementById('p-time').innerText = getRelativeTime(b.ts);
             }
 
-            // 2. Personal Earnings (Last 10)
-            const myBlocks = earnData.result?.blocks || [];
-            document.getElementById('earnings-table').innerHTML = myBlocks.slice(0, 10).map(blk => `
-                <tr>
-                    <td><a href="https://mempool.space/block/${blk.height}" target="_blank" style="color:var(--accent)">#${blk.height}</a></td>
-                    <td>${getRelativeTime(blk.ts)}</td>
-                    <td style="color:var(--ok); font-weight:bold;">${(parseFloat(blk.amount || 0) / 1e8).toFixed(8)}</td>
-                </tr>
-            `).join('') || '<tr><td colspan="3" style="text-align:center">No personal block earnings found yet</td></tr>';
+            // 2. Personal Earnings (Using your provided JSON structure)
+            const report = (earnData.result?.report || []).filter(blk => blk.Blockheight !== "-1");
+            // Sorting by time just in case, taking latest 10
+            const latestEarnings = report.sort((a,b) => new Date(b.TimeUTC) - new Date(a.TimeUTC)).slice(0, 10);
             
-            // 3. Workers
+            document.getElementById('earnings-table').innerHTML = latestEarnings.map(blk => `
+                <tr>
+                    <td><a href="https://mempool.space/block/${blk.Blockheight}" target="_blank" style="color:var(--accent)">#${blk.Blockheight}</a></td>
+                    <td>${getRelativeTime(blk.TimeUTC)}</td>
+                    <td style="color:var(--ok); font-weight:bold;">${(parseFloat(blk.NetUserRwd || 0) / 1e8).toFixed(8)}</td>
+                </tr>
+            `).join('') || '<tr><td colspan="3" style="text-align:center">Waiting for your first share...</td></tr>';
+            
+            // 3. Worker Status
             let t5=0, t3=0, t24=0, active=0;
             const ws = hrData.result?.workers || hrData.workers || {};
             lastWorkers = Object.keys(ws).map(n => {
@@ -177,7 +178,7 @@
             });
             renderWorkers();
             
-            // 4. Update Stats Cards
+            // 4. Stats Cards
             document.getElementById('t_hr').innerText = (t5/1e15).toFixed(2) + " PH/s";
             document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
             document.getElementById('t_unpaid').innerText = parseFloat(u.unpaid||0).toFixed(8);
@@ -185,15 +186,10 @@
             document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block||0).toFixed(8);
             document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides||0)/1e9).toFixed(2) + "G";
 
-        } catch (e) { console.error("Sync error:", e); }
+        } catch (e) { console.error("Sync error", e); }
     }
 
-    if (WALLET) { 
-        update(); 
-        setInterval(update, 60000); 
-    } else {
-        document.getElementById('auth-overlay').style.display = 'flex';
-    }
+    if (WALLET) { update(); setInterval(update, 60000); }
 </script>
 </body>
 </html>
