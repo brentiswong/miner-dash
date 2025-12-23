@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NGU TECH - Fixed Hashrate Dashboard</title>
+    <title>NGU TECH - Multi-Scale Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; }
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; --warn: #d29922; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
         .container { max-width: 1200px; margin: auto; }
         #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
@@ -18,7 +18,7 @@
         .label { font-size: 0.8rem; color: #8b949e; text-transform: uppercase; font-weight: 600; }
         .value { font-size: 1.8rem; font-weight: bold; color: white; margin-top: 8px; }
         .sub-value { font-size: 0.85rem; color: var(--accent); margin-top: 5px; }
-        .chart-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 25px; height: 400px; }
+        .chart-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 25px; height: 450px; }
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; padding: 15px; background: #1c2128; color: #8b949e; font-size: 0.75rem; text-transform: uppercase; }
@@ -42,11 +42,11 @@
         <div class="card">
             <div class="label">Live Hashrate</div>
             <div id="t_hr" class="value">0.00 TH/s</div>
-            <div id="t_hr_24h" class="sub-value">24h Avg: 0.00 TH/s</div>
+            <div id="t_hr_avg" class="sub-value">Averages: 3h: ... | 24h: ...</div>
         </div>
         <div class="card">
             <div class="label">Unpaid Balance</div>
-            <div id="t_unpaid" class="value">0.00000000 BTC</div>
+            <div id="t_unpaid" class="value">0.00 BTC</div>
             <div id="t_usd" class="sub-value" style="color: var(--ok);">$0.00 USD</div>
         </div>
         <div class="card">
@@ -60,7 +60,7 @@
 
     <div class="table-container">
         <table>
-            <thead><tr><th>Worker Name</th><th>5m Hashrate</th><th>24h Hashrate</th><th>Status</th></tr></thead>
+            <thead><tr><th>Worker</th><th>5m</th><th>3h</th><th>24h</th><th>Status</th></tr></thead>
             <tbody id="w-body"></tbody>
         </table>
     </div>
@@ -72,9 +72,8 @@
     const OCEAN_API = 'https://api.ocean.xyz/v1';
     let chart;
 
-    // Fixed Scaling Logic to prevent "Infinity" errors
     function formatHashrate(hps) {
-        if (!hps || hps <= 0) return { v: "0.00", u: "TH/s" };
+        if (!hps || hps <= 0) return { v: 0, u: "TH/s" };
         if (hps >= 1e21) return { v: (hps/1e21).toFixed(2), u: "EH/s" };
         if (hps >= 1e18) return { v: (hps/1e18).toFixed(2), u: "PH/s" };
         return { v: (hps/1e12).toFixed(2), u: "TH/s" };
@@ -88,22 +87,23 @@
     function logout() { localStorage.clear(); location.reload(); }
 
     function initChart() {
-        const saved = JSON.parse(localStorage.getItem('miner_history_v6') || '{"labels":[], "livePoints":[], "avgPoints":[], "lastUnit": "TH/s"}');
+        const saved = JSON.parse(localStorage.getItem('miner_history_v7') || '{"labels":[], "h5":[], "h3":[], "h24":[], "u": "TH/s"}');
         const ctx = document.getElementById('hashrateChart').getContext('2d');
         chart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: saved.labels,
                 datasets: [
-                    { label: 'Live Hashrate', data: saved.livePoints, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, tension: 0.3 },
-                    { label: '24h Average Hashrate', data: saved.avgPoints, borderColor: 'rgba(63, 185, 80, 0.6)', borderDash: [5, 5], fill: false, pointRadius: 0, borderWidth: 2 }
+                    { label: '5m Hashrate', data: saved.h5, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, tension: 0.3 },
+                    { label: '3h Hashrate', data: saved.h3, borderColor: '#d29922', fill: false, borderWidth: 2, pointRadius: 0 },
+                    { label: '24h Hashrate', data: saved.h24, borderColor: '#3fb950', borderDash: [5, 5], fill: false, borderWidth: 2, pointRadius: 0 }
                 ]
             },
             options: { 
                 responsive: true, maintainAspectRatio: false,
                 plugins: { legend: { display: true, labels: { color: '#8b949e' } } },
                 scales: { 
-                    y: { beginAtZero: true, grid: { color: '#30363d' }, title: { display: true, text: 'Hashrate (' + (saved.lastUnit || 'TH/s') + ')', color: '#8b949e' }, ticks: { color: '#8b949e' } },
+                    y: { beginAtZero: true, grid: { color: '#30363d' }, title: { display: true, text: 'Hashrate (' + (saved.u || 'TH/s') + ')', color: '#8b949e' }, ticks: { color: '#8b949e' } },
                     x: { ticks: { color: '#8b949e' }, grid: { display: false } }
                 }
             }
@@ -127,46 +127,48 @@
             const hrData = await hrRes.json();
             const snData = await snRes.json();
 
-            const stats = snData.result || snData;
-            const btcBalance = parseFloat(stats.unpaid) || 0;
-            const usdVal = btcBalance * price;
+            const btcBalance = parseFloat(snData.result?.unpaid || snData.unpaid) || 0;
             document.getElementById('t_unpaid').innerText = `${btcBalance.toFixed(8)} BTC`;
-            document.getElementById('t_usd').innerText = `$${usdVal.toLocaleString(undefined, {minimumFractionDigits: 2})} USD`;
+            document.getElementById('t_usd').innerText = `$${(btcBalance * price).toLocaleString(undefined, {minimumFractionDigits: 2})} USD`;
 
-            const wObj = hrData.result?.workers || {};
-            let totalLive = 0, total24h = 0;
+            const wObj = hrData.result?.workers || hrData.workers || {};
+            let t5 = 0, t3 = 0, t24 = 0;
+            
             let workers = Object.keys(wObj).map(name => {
-                const s = wObj[name][0];
-                const liveRaw = parseFloat(s.hashrate_300s) || 0;
-                const avgRaw = parseFloat(s.hashrate_86400s) || 0;
-                totalLive += liveRaw; total24h += avgRaw;
-                return { name, hLive: (liveRaw/1e12).toFixed(2), hAvg: (avgRaw/1e12).toFixed(2), online: liveRaw > 0 };
+                const s = Array.isArray(wObj[name]) ? wObj[name][0] : wObj[name];
+                const r5 = parseFloat(s.hashrate_300s) || 0;
+                const r3 = parseFloat(s.hashrate_10800s) || 0;
+                const r24 = parseFloat(s.hashrate_86400s) || 0;
+                t5 += r5; t3 += r3; t24 += r24;
+                return { name, h5: (r5/1e12).toFixed(2), h3: (r3/1e12).toFixed(2), h24: (r24/1e12).toFixed(2), online: r5 > 0 };
             });
 
-            const scaledLive = formatHashrate(totalLive);
-            const scaledAvg = formatHashrate(total24h);
-            document.getElementById('t_hr').innerText = scaledLive.v + " " + scaledLive.u;
-            document.getElementById('t_hr_24h').innerText = `24h Avg: ${scaledAvg.v} ${scaledAvg.u}`;
+            const s5 = formatHashrate(t5);
+            const s3 = formatHashrate(t3);
+            const s24 = formatHashrate(t24);
 
-            chart.options.scales.y.title.text = 'Hashrate (' + scaledLive.u + ')';
+            document.getElementById('t_hr').innerText = s5.v + " " + s5.u;
+            document.getElementById('t_hr_avg').innerText = `3h: ${s3.v} ${s3.u} | 24h: ${s24.v} ${s24.u}`;
+
+            chart.options.scales.y.title.text = 'Hashrate (' + s5.u + ')';
             const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             
             chart.data.labels.push(now);
-            chart.data.datasets[0].data.push(scaledLive.v);
-            chart.data.datasets[1].data.push(scaledAvg.v);
+            chart.data.datasets[0].data.push(s5.v);
+            chart.data.datasets[1].data.push(s3.v);
+            chart.data.datasets[2].data.push(s24.v);
 
             if (chart.data.labels.length > 288) {
                 chart.data.labels.shift();
-                chart.data.datasets[0].data.shift();
-                chart.data.datasets[1].data.shift();
+                chart.data.datasets.forEach(d => d.data.shift());
             }
             chart.update();
-            localStorage.setItem('miner_history_v6', JSON.stringify({ 
-                labels: chart.data.labels, livePoints: chart.data.datasets[0].data, avgPoints: chart.data.datasets[1].data, lastUnit: scaledLive.u 
+            localStorage.setItem('miner_history_v7', JSON.stringify({ 
+                labels: chart.data.labels, h5: chart.data.datasets[0].data, h3: chart.data.datasets[1].data, h24: chart.data.datasets[2].data, u: s5.u 
             }));
 
             document.getElementById('w-body').innerHTML = workers.map(w => `
-                <tr><td><b>${w.name}</b></td><td>${w.hLive} TH/s</td><td>${w.hAvg} TH/s</td><td>${w.online?'● Active':'○ Offline'}</td></tr>
+                <tr><td><b>${w.name}</b></td><td>${w.h5}</td><td>${w.h3}</td><td>${w.h24}</td><td>${w.online?'●':'○'}</td></tr>
             `).join('');
         } catch (e) { console.error("Update Error:", e); }
     }
