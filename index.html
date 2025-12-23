@@ -40,7 +40,7 @@
 
 <div class="container">
     <div class="pool-status">
-        <div class="stat-item"><span class="pool-label">Pool Hashrate:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Pool hashrate:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Blocks in Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
@@ -158,7 +158,7 @@
     }
 
     function formatTimeAgo(secondsAgo) {
-        secondsAgo = Math.abs(secondsAgo); // Prevent negative from clock skew
+        secondsAgo = Math.abs(secondsAgo);
         if (secondsAgo < 60) return `${Math.floor(secondsAgo)}s ago`;
         const minutes = Math.floor(secondsAgo / 60);
         if (minutes < 60) return `${minutes}m ${Math.floor(secondsAgo % 60)}s ago`;
@@ -178,11 +178,15 @@
         document.getElementById('p-time').innerText = formatTimeAgo(ago);
     }
 
-    // ... (fetchDeepHistory, filterHist, fetchAndRenderEarnings, fetchAndRenderPayouts, update, init unchanged from previous version)
-
-    // The script remains the same as the last version you had (with blocks in window, payouts table, etc.)
+    // Functionality to be completed based on your specific implementation needs
+    async function init() {
+        if (!WALLET) return;
+        document.getElementById('auth-overlay').style.display = 'none';
+        // Add your update loops and chart initializations here
+    }
 
     if (WALLET) init();
+    setInterval(updateTimeSince, 1000);
 </script>
 </body>
 </html>
