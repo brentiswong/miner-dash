@@ -2,41 +2,40 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NGU TECH - Live Monitor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NGU TECH - Full Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --dead: #f85149; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; }
         .container { max-width: 1200px; margin: auto; }
-        
         .pool-status { background: #1c2128; border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; flex-wrap: wrap; gap: 10px; }
         .stat-item { display: flex; align-items: center; gap: 6px; }
         .pool-label { color: #8b949e; text-transform: uppercase; font-size: 0.65rem; font-weight: 700; }
-        
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 20px; }
         .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; }
         .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; font-family: monospace; }
-        
-        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 320px; margin-bottom: 20px; position: relative; }
-        
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        @media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
+        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 350px; position: relative; }
         table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
         th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; }
         td { padding: 12px; border-bottom: 1px solid var(--border); }
-        
+        .controls { position: absolute; top: 10px; right: 15px; z-index: 10; display: flex; gap: 5px; }
+        .btn-sm { background: #30363d; color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 0.65rem; cursor: pointer; }
         #status-bar { font-size: 0.7rem; color: var(--accent); margin-bottom: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div id="status-bar">SYNCING WITH MAIN BRANCH...</div>
+    <div id="status-bar">CONNECTING...</div>
     
     <div class="pool-status">
         <div class="stat-item"><span class="pool-label">Pool HR:</span> <span id="p-hr-global">...</span></div>
         <div class="stat-item"><span class="pool-label">Block:</span> <span id="p-height">...</span></div>
         <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder">...</span></div>
-        <div id="p-time" style="color:var(--accent); font-weight:bold;">Calculating...</div>
+        <div id="p-time" style="color:var(--accent); font-weight:bold;">Syncing...</div>
     </div>
 
     <div class="grid">
@@ -45,14 +44,24 @@
         <div class="card"><div class="pool-label">Unpaid (BTC)</div><div id="t_unpaid" class="value" style="color:var(--ok)">...</div></div>
     </div>
 
-    <div class="chart-box">
-        <canvas id="liveChart"></canvas>
+    <div class="chart-grid">
+        <div class="chart-box">
+            <div class="controls">
+                <button class="btn-sm" onclick="filterHist(30)">1M</button>
+                <button class="btn-sm" onclick="filterHist(365)">1Y</button>
+                <button class="btn-sm" onclick="filterHist(0)">ALL</button>
+            </div>
+            <h3 style="margin:0 0 10px 0; font-size:0.8rem">Historical (PH/s)</h3>
+            <canvas id="histChart"></canvas>
+        </div>
+        <div class="chart-box">
+            <h3 style="margin:0 0 10px 0; font-size:0.8rem">Live 24H (PH/s)</h3>
+            <canvas id="liveChart"></canvas>
+        </div>
     </div>
 
     <table>
-        <thead>
-            <tr><th>Worker</th><th>5m (TH)</th><th>24h (TH)</th><th>Status</th></tr>
-        </thead>
+        <thead><tr><th>Worker</th><th>5m (TH)</th><th>24h (TH)</th><th>Status</th></tr></thead>
         <tbody id="worker-table"></tbody>
     </table>
 </div>
@@ -60,11 +69,30 @@
 <script>
     const WALLET = "bc1q76zgkz5ussy2hl54vdz7nv0q96kta82ckdu7ys";
     const PROXY = 'https://api.allorigins.win/raw?url=';
-    let liveChart;
+    let histChart, liveChart, fullHistData = [];
 
     function setText(id, text) {
         const el = document.getElementById(id);
         if (el) el.innerText = text;
+    }
+
+    async function init() {
+        initCharts();
+        await loadHistory();
+        updateLive();
+        setInterval(updateLive, 60000);
+    }
+
+    async function loadHistory() {
+        try {
+            const res = await fetch('history.json');
+            const data = await res.json();
+            fullHistData = data.result.report
+                .filter(d => parseFloat(d.hashrate_avg_24hr_thsec) > 0)
+                .sort((a,b) => new Date(a.date) - new Date(b.date));
+            filterHist(0);
+            setText('status-bar', "HISTORY LOADED");
+        } catch (e) { setText('status-bar', "LIVE MODE (NO CACHE)"); }
     }
 
     async function updateLive() {
@@ -81,18 +109,15 @@
             const p = await pRes.json();
             const ph = await phRes.json();
 
-            // Stats
             setText('t_hr', (parseFloat(hr.result?.total_300s || 0)/1e15).toFixed(2));
             setText('t_unpaid', parseFloat(u.result?.unpaid || 0).toFixed(8));
             setText('t_est', parseFloat(u.result?.estimated_earn_next_block || 0).toFixed(8));
             setText('p-hr-global', (parseFloat(ph.result?.pool_300s || 0)/1e18).toFixed(2) + " EH/s");
 
-            // Block & Finder
             const block = p.result?.blocks[0] || {};
             setText('p-height', "#" + (block.height || "---"));
             setText('p-finder', block.username ? (block.username.substring(0,8)) : "---");
 
-            // Time Math (iPad specific fix)
             if (block.ts) {
                 const baseTs = block.ts.split('.')[0].replace('T', ' '); 
                 const blockTime = new Date(baseTs + " UTC").getTime();
@@ -104,35 +129,35 @@
                 else setText('p-time', Math.floor(diff/3600) + "h ago");
             }
 
-            // Chart
             const label = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
             liveChart.data.labels.push(label);
             liveChart.data.datasets[0].data.push((parseFloat(hr.result?.total_300s || 0)/1e15).toFixed(2));
             if(liveChart.data.labels.length > 20) { liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); }
             liveChart.update();
 
-            // Table
             const ws = hr.result?.workers || {};
             document.getElementById('worker-table').innerHTML = Object.keys(ws).map(n => {
                 const s = ws[n][0];
                 return `<tr><td>${n}</td><td>${(s.hashrate_300s/1e12).toFixed(1)}</td><td>${(s.hashrate_86400s/1e12).toFixed(1)}</td><td style="color:${s.hashrate_300s > 0 ? 'var(--ok)':'var(--dead)'}">●</td></tr>`;
             }).join('');
             
-            setText('status-bar', "SYSTEM LIVE");
-        } catch(e) { 
-            console.error(e);
-            setText('status-bar', "SYNC ERROR");
-        }
+        } catch(e) { console.error(e); }
     }
 
-    liveChart = new Chart(document.getElementById('liveChart'), { 
-        type: 'line', 
-        data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, tension: 0.4 }] },
-        options: { responsive: true, maintainAspectRatio: false, scales: { x: { display: false } } }
-    });
+    function filterHist(days) {
+        if (!fullHistData.length) return;
+        const filtered = days === 0 ? fullHistData : fullHistData.slice(-days);
+        histChart.data.labels = filtered.map(d => d.date);
+        histChart.data.datasets[0].data = filtered.map(d => (parseFloat(d.hashrate_avg_24hr_thsec)/1000).toFixed(2));
+        histChart.update();
+    }
 
-    updateLive();
-    setInterval(updateLive, 60000);
+    function initCharts() {
+        histChart = new Chart(document.getElementById('histChart'), { type: 'line', data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', fill: true, backgroundColor: 'rgba(88,166,255,0.05)', pointRadius: 0 }] }, options: { responsive: true, maintainAspectRatio: false } });
+        liveChart = new Chart(document.getElementById('liveChart'), { type: 'line', data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#ff7b72', tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false } });
+    }
+
+    init();
 </script>
 </body>
 </html>
