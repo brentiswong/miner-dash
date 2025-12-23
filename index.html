@@ -152,7 +152,12 @@
     let currentSort = { key: 'name', asc: true };
     let lastBlockTimestamp = 0;
 
-    // Fixed button and Enter key with DOMContentLoaded
+    // Hide overlay immediately if address saved
+    if (WALLET) {
+        document.getElementById('auth-overlay').style.display = 'none';
+    }
+
+    // Button and Enter key
     document.addEventListener('DOMContentLoaded', () => {
         const loginBtn = document.getElementById('login-btn');
         const walletInput = document.getElementById('wallet-input');
@@ -181,52 +186,10 @@
         if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); }
     }
 
-    function setSort(k) {
-        if (currentSort.key === k) currentSort.asc = !currentSort.asc;
-        else { currentSort.key = k; currentSort.asc = true; }
-        renderWorkers();
-    }
-
-    function renderWorkers() {
-        const query = document.getElementById('miner-search').value.toLowerCase();
-        let filtered = lastWorkers.filter(m => m.name.toLowerCase().includes(query));
-        const sorted = [...filtered].sort((a,b) => currentSort.asc ? (a[currentSort.key] > b[currentSort.key] ? 1 : -1) : (a[currentSort.key] < b[currentSort.key] ? 1 : -1));
-        document.getElementById('worker-table').innerHTML = sorted.map(m => `
-            <tr><td><b>${m.name}</b></td><td>${m.h5.toFixed(2)}</td><td>${m.h3.toFixed(2)}</td><td>${m.h24.toFixed(2)}</td>
-            <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td></tr>`).join('');
-    }
-
-    function formatTimeAgo(secondsAgo) {
-        if (secondsAgo <= 0) return "Just now";
-        const days = Math.floor(secondsAgo / 86400);
-        const hours = Math.floor((secondsAgo % 86400) / 3600);
-        const minutes = Math.floor((secondsAgo % 3600) / 60);
-        const seconds = secondsAgo % 60;
-
-        let parts = [];
-        if (days > 0) parts.push(`${days}d`);
-        if (hours > 0 || days > 0) parts.push(`${hours}h`);
-        if (minutes > 0 || hours > 0 || days > 0) parts.push(`${minutes}m`);
-        parts.push(`${seconds}s`);
-
-        return parts.join(' ') + ' ago';
-    }
-
-    function updateTimeSince() {
-        if (lastBlockTimestamp === 0) {
-            document.getElementById('p-time').innerText = 'Loading...';
-            return;
-        }
-        const nowUTC = Math.floor(Date.now() / 1000);
-        const ago = nowUTC - lastBlockTimestamp;
-        document.getElementById('p-time').innerText = formatTimeAgo(ago);
-    }
-
-    // ... (rest of the script — fetchDeepHistory, filterHist, fetchAndRenderEarnings, fetchAndRenderPayouts unchanged)
+    // ... (rest of the script unchanged — setSort, renderWorkers, formatTimeAgo, updateTimeSince, fetchDeepHistory, filterHist, fetchAndRenderEarnings, fetchAndRenderPayouts, update, init)
 
     async function update() {
         if (!WALLET) return;
-        document.getElementById('auth-overlay').style.display = 'none';
 
         try {
             // ... (fetches unchanged)
@@ -234,7 +197,7 @@
             if (block.ts) { 
                 lastBlockTimestamp = Math.floor(new Date(block.ts).getTime() / 1000); 
             }
-            updateTimeSince(); // Immediate update
+            updateTimeSince();
 
             // ... (rest unchanged)
 
@@ -248,7 +211,7 @@
             await fetchDeepHistory();
             update(); 
             setInterval(update, 60000);
-            setInterval(updateTimeSince, 1000); // Live ticking every second
+            setInterval(updateTimeSince, 1000);
         }
     }
 
