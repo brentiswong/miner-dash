@@ -40,7 +40,7 @@
 
 <div class="container">
     <div class="pool-status">
-        <div class="stat-item"><span class="pool-label">Pool hashrate:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Pool HR:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Blocks in Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
@@ -78,7 +78,7 @@
             <canvas id="histChart"></canvas>
         </div>
         <div class="chart-box">
-            <h3 style="background:transparent; padding:0">Live 24H</h3>
+            <h3 style="background:transparent; padding:0">Live 24H (HR & Miners)</h3>
             <canvas id="liveChart"></canvas>
         </div>
     </div>
@@ -101,7 +101,7 @@
 
     <div class="tables-grid">
         <div class="table-container">
-            <h3>Last 10 Earnings</h3>
+            <h3>Last 10 Earnings (Recent Blocks Contributed To)</h3>
             <table>
                 <thead>
                     <tr>
@@ -115,7 +115,7 @@
         </div>
 
         <div class="table-container">
-            <h3>Last 10 Payouts</h3>
+            <h3>Last 10 Payouts (Received Payments)</h3>
             <table>
                 <thead>
                     <tr>
@@ -158,7 +158,6 @@
     }
 
     function formatTimeAgo(secondsAgo) {
-        secondsAgo = Math.abs(secondsAgo);
         if (secondsAgo < 60) return `${Math.floor(secondsAgo)}s ago`;
         const minutes = Math.floor(secondsAgo / 60);
         if (minutes < 60) return `${minutes}m ${Math.floor(secondsAgo % 60)}s ago`;
@@ -178,15 +177,235 @@
         document.getElementById('p-time').innerText = formatTimeAgo(ago);
     }
 
-    // Functionality to be completed based on your specific implementation needs
-    async function init() {
-        if (!WALLET) return;
-        document.getElementById('auth-overlay').style.display = 'none';
-        // Add your update loops and chart initializations here
+    async function fetchDeepHistory() {
+        let date = new Date();
+        const results = [];
+        for(let i=0; i<18; i++) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const url = `https://api.ocean.xyz/v1/monthly_user_report/${WALLET}/${y}-${m}`;
+            try {
+                const res = await fetch(PROXY + encodeURIComponent(url));
+                const data = await res.json();
+                if(data.result?.report) results.push(...data.result.report);
+                if(data.result?.report?.length === 0 && i > 3) break;
+            } catch(e) {}
+            date.setMonth(date.getMonth() - 1);
+        }
+        fullHistData = results.filter(d => parseFloat(d.hashrate_avg_24hr_thsec) > 0)
+                              .sort((a,b) => new Date(a.date) - new Date(b.date));
+        filterHist(0);
     }
 
+    function filterHist(days) {
+        document.querySelectorAll('.btn-sm').forEach(b => b.classList.remove('active'));
+        const filtered = days === 0 ? fullHistData : fullHistData.slice(-days);
+        histChart.data.labels = filtered.map(d => d.date);
+        histChart.data.datasets[0].data = filtered.map(d => (parseFloat(d.hashrate_avg_24hr_thsec)/1000).toFixed(2));
+        histChart.update();
+    }
+
+    async function fetchAndRenderEarnings() {
+        let date = new Date();
+        let allEarnings = [];
+        for(let i = 0; i < 18; i++) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const url = `https://api.ocean.xyz/v1/monthly_earnings_report/${WALLET}/${y}-${m}`;
+            try {
+                const res = await fetch(PROXY + encodeURIComponent(url));
+                const data = await res.json();
+                if (data.result?.report) {
+                    allEarnings.push(...data.result.report);
+                }
+            } catch(e) {}
+            date.setMonth(date.getMonth() - 1);
+        }
+
+        const valid = allEarnings
+            .filter(e => e.Blockheight !== "-1" && parseInt(e.NetUserRwd || 0) > 0);
+
+        valid.sort((a, b) => new Date(b.TimeUTC) - new Date(a.TimeUTC));
+
+        const recent = valid.slice(0, 10);
+
+        const tbody = document.getElementById('earnings-table');
+        if (recent.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center">No earnings found yet</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = recent.map(e => {
+            const sats = parseInt(e.NetUserRwd);
+            const btc = (sats / 100000000).toFixed(8);
+            const dt = new Date(e.TimeUTC);
+            const month = dt.toLocaleString('en-US', { month: 'short' });
+            const day = dt.getUTCDate();
+            const hour = dt.getUTCHours().toString().padStart(2, '0');
+            const min = dt.getUTCMinutes().toString().padStart(2, '0');
+            const dateStr = `${month} ${day}, ${hour}:${min}`;
+            return `<tr><td>${dateStr} UTC</td><td>#${e.Blockheight}</td><td>${btc} BTC</td></tr>`;
+        }).join('');
+    }
+
+    async function fetchAndRenderPayouts() {
+        let date = new Date();
+        let allPayouts = [];
+        for(let i = 0; i < 18; i++) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const url = `https://api.ocean.xyz/v1/monthly_payout_report/${WALLET}/${y}-${m}`;
+            try {
+                const res = await fetch(PROXY + encodeURIComponent(url));
+                const data = await res.json();
+                if (data.result?.report) {
+                    allPayouts.push(...data.result.report);
+                }
+            } catch(e) {}
+            date.setMonth(date.getMonth() - 1);
+        }
+
+        const valid = allPayouts.filter(p => parseInt(p.PayoutAmt || 0) > 0);
+
+        valid.sort((a, b) => new Date(b.TimeUTC) - new Date(a.TimeUTC));
+
+        const recent = valid.slice(0, 10);
+
+        const tbody = document.getElementById('payouts-table');
+        if (recent.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center">No payouts yet</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = recent.map(p => {
+            const sats = parseInt(p.PayoutAmt);
+            const btc = (sats / 100000000).toFixed(8);
+            const dt = new Date(p.TimeUTC);
+            const month = dt.toLocaleString('en-US', { month: 'short' });
+            const day = dt.getUTCDate();
+            const hour = dt.getUTCHours().toString().padStart(2, '0');
+            const min = dt.getUTCMinutes().toString().padStart(2, '0');
+            const dateStr = `${month} ${day}, ${hour}:${min}`;
+            const txLink = `<a href="https://mempool.space/tx/${p.TXID}" target="_blank" style="color:var(--accent)">${p.TXID.substring(0,12)}...</a>`;
+            return `<tr><td>${dateStr} UTC</td><td>${btc} BTC</td><td>${txLink}</td></tr>`;
+        }).join('');
+    }
+
+    async function update() {
+        if (!WALLET) return;
+        document.getElementById('auth-overlay').style.display = 'none';
+
+        try {
+            const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
+            const price = parseFloat((await priceRes.json()).data.amount);
+
+            const [hrRes, uRes, poolRes, pHRRes, blocksRes] = await Promise.all([
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=30`))
+            ]);
+
+            const hrData = await hrRes.json();
+            const u = (await uRes.json()).result || {};
+            const pData = await poolRes.json();
+            const pHR = await pHRRes.json();
+            const blocksData = await blocksRes.json();
+
+            const block = pData.result?.blocks?.[0] || {};
+            document.getElementById('p-height').innerText = "#" + (block.height || "...");
+            document.getElementById('p-finder').innerText = block.username ? (block.username.substring(0,8) + (block.workername ? "."+block.workername : "")) : "...";
+            document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
+            
+            if (block.ts) {
+                lastBlockTimestamp = Math.floor(new Date(block.ts).getTime() / 1000);
+            }
+            updateTimeSince();
+
+            // Blocks in Window
+            const sharelog = parseFloat(block.sharelog_window || 0);
+            let k = 0;
+            let cum = 0;
+            const blocks = blocksData.result?.blocks || [];
+            blocks.sort((a, b) => b.height - a.height);
+            for (const b of blocks) {
+                cum += parseFloat(b.accepted_shares || 0);
+                k++;
+                if (cum >= sharelog) break;
+            }
+            document.getElementById('p-blocks').innerText = k;
+
+            const unpaid = parseFloat(u.unpaid||0);
+            document.getElementById('t_unpaid').innerText = unpaid.toFixed(8);
+            document.getElementById('t_usd').innerText = "$" + (unpaid * price).toFixed(2);
+            document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block||0).toFixed(8);
+            document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides||0)/1e9).toFixed(2) + "G";
+
+            let t5=0, t3=0, t24=0, active=0;
+            const ws = hrData.result?.workers || hrData.workers || {};
+            lastWorkers = Object.keys(ws).map(n => {
+                const s = Array.isArray(ws[n]) ? ws[n][0] : ws[n];
+                const h5 = parseFloat(s.hashrate_300s||0);
+                t5 += h5; t3 += parseFloat(s.hashrate_10800s||0); t24 += parseFloat(s.hashrate_86400s||0);
+                if(h5 > 0) active++;
+                return { name: n, h5: h5/1e12, h3: (s.hashrate_10800s||0)/1e12, h24: (s.hashrate_86400s||0)/1e12, status: h5 > 0 ? 'ACTIVE' : 'INACTIVE' };
+            });
+            renderWorkers();
+            document.getElementById('t_hr').innerText = (t5/1e15).toFixed(2) + " PH/s";
+            document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
+
+            const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            liveChart.data.labels.push(time);
+            liveChart.data.datasets[0].data.push((t5/1e15).toFixed(2));
+            liveChart.data.datasets[1].data.push(active);
+            if(liveChart.data.labels.length > 1440) { liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); liveChart.data.datasets[1].data.shift(); }
+            liveChart.update();
+            localStorage.setItem('live_v4', JSON.stringify({l: liveChart.data.labels, h: liveChart.data.datasets[0].data, w: liveChart.data.datasets[1].data}));
+
+            if (!window.earningsLoaded) {
+                await fetchAndRenderEarnings();
+                await fetchAndRenderPayouts();
+                window.earningsLoaded = true;
+            }
+
+        } catch (e) { console.error(e); }
+    }
+
+    async function init() {
+        const histCtx = document.getElementById('histChart').getContext('2d');
+        histChart = new Chart(histCtx, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Daily PH/s', data: [], borderColor: '#58a6ff', tension: 0.3, fill: true, backgroundColor: 'rgba(88,166,255,0.1)' }] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' } } } }
+        });
+
+        const liveCtx = document.getElementById('liveChart').getContext('2d');
+        const s = JSON.parse(localStorage.getItem('live_v4') || '{"l":[], "h":[], "w":[]}');
+        liveChart = new Chart(liveCtx, {
+            type: 'line',
+            data: { 
+                labels: s.l, 
+                datasets: [
+                    { label: 'PH/s', data: s.h, borderColor: '#58a6ff', tension: 0.2, pointRadius: 0 },
+                    { label: 'Miners', data: s.w, borderColor: '#ff7b72', yAxisID: 'y1', pointRadius: 0, borderDash: [5,5] }
+                ] 
+            },
+            options: { 
+                responsive: true, maintainAspectRatio: false, 
+                scales: { 
+                    y: { grid: { color: '#30363d' } },
+                    y1: { position: 'right', grid: { display: false }, ticks: { precision: 0 } }
+                }
+            }
+        });
+
+        await fetchDeepHistory();
+        update(); 
+        setInterval(update, 60000);
+        setInterval(updateTimeSince, 30000);
+    }
     if (WALLET) init();
-    setInterval(updateTimeSince, 1000);
 </script>
 </body>
 </html>
