@@ -30,6 +30,11 @@
         h3 { font-size: 0.85rem; color: var(--accent); padding: 15px; margin: 0; background: #1c2128; border-bottom: 1px solid var(--border); text-transform: uppercase; }
         input { width: 340px; padding: 12px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
         button#login-btn { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        
+        /* Pulse Dot Styles */
+        .pulse-dot { height: 8px; width: 8px; background-color: var(--ok); border-radius: 50%; display: inline-block; margin-right: 8px; box-shadow: 0 0 0 rgba(63, 185, 80, 0.4); animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(63, 185, 80, 0); } 100% { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); } }
+
         .search-container { background: #1c2128; padding: 10px 15px; border-bottom: 1px solid var(--border); display: flex; align-items: center; }
         .search-input { width: 100%; max-width: 300px; padding: 8px; font-size: 0.8rem; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
         .footer-settings { margin-top: 40px; padding: 25px; background: var(--card); border-top: 1px solid var(--border); border-radius: 8px; text-align: center; }
@@ -47,7 +52,10 @@
         <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Blocks in Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
-        <div id="p-time" style="color:#8b949e">Loading...</div>
+        <div style="display:flex; align-items:center;">
+            <span class="pulse-dot"></span>
+            <div id="p-time" style="color:#8b949e">Syncing...</div>
+        </div>
     </div>
 
     <div class="grid">
@@ -177,9 +185,8 @@
             <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td></tr>`).join('');
     }
 
-    // --- Targeted Fix for Time Logic ---
     function formatTimeAgo(secondsAgo) {
-        if (secondsAgo <= 0) return "Just now";
+        if (secondsAgo <= 0) return "0s ago"; // Force a starting point
         const days = Math.floor(secondsAgo / 86400);
         const hours = Math.floor((secondsAgo % 86400) / 3600);
         const minutes = Math.floor((secondsAgo % 3600) / 60);
@@ -195,16 +202,18 @@
     }
 
     function updateTimeSince() {
-        if (lastBlockTimestamp === 0) {
-            document.getElementById('p-time').innerText = 'Loading...';
-            return;
-        }
-        // Always calculate current UTC time for comparison
-        const nowUTC = Math.floor(Date.now() / 1000);
-        const ago = nowUTC - lastBlockTimestamp;
+        if (lastBlockTimestamp === 0) return;
+        
+        // Use standard Date parsing but handle clock skew
+        const now = Math.floor(Date.now() / 1000);
+        let ago = now - lastBlockTimestamp;
+        
+        // If ago is negative (local clock is behind pool clock), 
+        // we'll just show "0s ago" until the clock catches up.
+        if (ago < 0) ago = 0; 
+        
         document.getElementById('p-time').innerText = formatTimeAgo(ago);
     }
-    // ------------------------------------
 
     async function fetchDeepHistory() {
         let date = new Date();
@@ -261,7 +270,7 @@
             document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
             
             if (block.ts) { 
-                // Ensure the block timestamp is parsed to UTC seconds
+                // Strict parsing to ensure UTC
                 lastBlockTimestamp = Math.floor(new Date(block.ts).getTime() / 1000); 
             }
             updateTimeSince();
@@ -276,7 +285,7 @@
             document.getElementById('t_unpaid').innerText = unpaid.toFixed(8);
             document.getElementById('t_usd').innerText = "$" + (unpaid * price).toFixed(2);
             document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block||0).toFixed(8);
-            document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides||0)/1e9).toFixed(2) + "G";
+            document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tIDES||0)/1e9).toFixed(2) + "G";
 
             let t5=0, t3=0, t24=0, active=0;
             const ws = hrData.result?.workers || hrData.workers || {};
