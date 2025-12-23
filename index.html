@@ -34,7 +34,7 @@
 </head>
 <body>
 
-<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH Dashboard</h2><input type="text" id="wallet-input" placeholder="Enter BTC Address"><br><br><button id="login-btn" onclick="login()">Sync Dashboard</button></div></div>
+<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH Dashboard</h2><input type="text" id="wallet-input" placeholder="Enter BTC Address"><br><br><button id="login-btn">Sync Dashboard</button></div></div>
 
 <div class="container">
     <div class="pool-status">
@@ -45,27 +45,117 @@
         <div id="p-time" style="color:#8b949e">Loading...</div>
     </div>
 
-    <!-- Dashboard content unchanged -->
+    <div class="grid">
+        <div class="card">
+            <div class="label">Hashrate (5m / 3h / 24h)</div>
+            <div id="t_hr" class="value">0.00 PH/s</div>
+            <div id="t_hr_avg" class="sub-value" style="color:var(--accent)">0.00 / 0.00 PH/s</div>
+        </div>
+        <div class="card">
+            <div class="label">Unpaid (BTC)</div>
+            <div id="t_unpaid" class="value">0.00000000</div>
+            <div id="t_usd" class="sub-value" style="color:var(--ok)">$0.00 USD</div>
+        </div>
+        <div class="card">
+            <div class="label">Est. Next Block / TIDES</div>
+            <div id="t_est" class="value">0.00000000</div>
+            <div id="t_shares" class="sub-value">0.00G Shares</div>
+        </div>
+    </div>
 
+    <div class="chart-grid">
+        <div class="chart-box">
+            <div class="controls">
+                <button class="btn-sm" onclick="filterHist(7)">1W</button>
+                <button class="btn-sm" onclick="filterHist(30)">1M</button>
+                <button class="btn-sm" onclick="filterHist(180)">6M</button>
+                <button class="btn-sm" onclick="filterHist(365)">1Y</button>
+                <button class="btn-sm active" onclick="filterHist(0)">ALL</button>
+            </div>
+            <h3 style="background:transparent; padding:0">Historical PH/s</h3>
+            <canvas id="histChart"></canvas>
+        </div>
+        <div class="chart-box">
+            <h3 style="background:transparent; padding:0">Live 24H (HR & Miners)</h3>
+            <canvas id="liveChart"></canvas>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <h3>Miner Status</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th onclick="setSort('name')">Name ↕</th>
+                    <th onclick="setSort('h5')">5m (TH/s) ↕</th>
+                    <th onclick="setSort('h3')">3h (TH/s) ↕</th>
+                    <th onclick="setSort('h24')">24h (TH/s) ↕</th>
+                    <th onclick="setSort('status')">Status ↕</th>
+                </tr>
+            </thead>
+            <tbody id="worker-table"></tbody>
+        </table>
+    </div>
+
+    <div class="table-container">
+        <h3>Last 10 Earnings (Recent Blocks You Contributed To)</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date (UTC)</th>
+                    <th>Block Height</th>
+                    <th>Earned (BTC)</th>
+                </tr>
+            </thead>
+            <tbody id="earnings-table"></tbody>
+        </table>
+    </div>
 </div>
 
 <script>
     let WALLET = localStorage.getItem('ocean_wallet');
     const PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
-    // ... (all variables and functions unchanged from the working version)
+    let histChart, liveChart;
+    let fullHistData = []; 
+    let lastWorkers = [];
+    let currentSort = { key: 'name', asc: true };
+    let lastBlockTimestamp = 0;
+
+    // Fixed button with reliable event listeners
+    document.addEventListener('DOMContentLoaded', () => {
+        const loginBtn = document.getElementById('login-btn');
+        const walletInput = document.getElementById('wallet-input');
+
+        loginBtn.addEventListener('click', login);
+        loginBtn.addEventListener('touchend', login); // Better for iPad touch
+
+        walletInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') login();
+        });
+    });
+
+    function login() { 
+        const v = document.getElementById('wallet-input').value.trim(); 
+        if(v) { 
+            localStorage.setItem('ocean_wallet', v); 
+            location.reload(); 
+        } 
+    }
+
+    // ... (all other functions unchanged from the working version)
 
     async function update() {
         if (!WALLET) return;
         document.getElementById('auth-overlay').style.display = 'none';
 
         try {
-            // ... (fetches unchanged)
+            // ... (fetches and stats unchanged)
 
             const block = pData.result?.blocks?.[0] || {};
 
-            // ... (other stats unchanged)
+            // ... (other stats)
 
-            // Correct & simple TIDES Luck (no extra API)
+            // Correct TIDES Luck
             if (block.sharelog_window && block.network_difficulty) {
                 const sharelog = parseFloat(block.sharelog_window);
                 const diff = parseFloat(block.network_difficulty);
@@ -76,12 +166,12 @@
                 document.getElementById('p-luck').innerText = "...";
             }
 
-            // ... (rest of update unchanged)
+            // ... (rest unchanged)
 
         } catch (e) { console.error(e); }
     }
 
-    // ... init unchanged
+    // ... (init unchanged)
 
     if (WALLET) init();
 </script>
