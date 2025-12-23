@@ -32,7 +32,6 @@
         button#login-btn { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .tables-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
         @media (max-width: 900px) { .tables-grid { grid-template-columns: 1fr; } }
-        /* New styles for requested elements */
         .search-container { background: #1c2128; padding: 10px 15px; border-bottom: 1px solid var(--border); display: flex; align-items: center; }
         .search-input { width: 100%; max-width: 300px; padding: 8px; font-size: 0.8rem; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
         .footer-settings { margin-top: 40px; padding: 25px; background: var(--card); border-top: 1px solid var(--border); border-radius: 8px; text-align: center; }
@@ -172,7 +171,6 @@
     function renderWorkers() {
         const query = document.getElementById('miner-search').value.toLowerCase();
         let filtered = lastWorkers.filter(m => m.name.toLowerCase().includes(query));
-        
         const sorted = [...filtered].sort((a,b) => currentSort.asc ? (a[currentSort.key] > b[currentSort.key] ? 1 : -1) : (a[currentSort.key] < b[currentSort.key] ? 1 : -1));
         document.getElementById('worker-table').innerHTML = sorted.map(m => `
             <tr><td><b>${m.name}</b></td><td>${m.h5.toFixed(2)}</td><td>${m.h3.toFixed(2)}</td><td>${m.h24.toFixed(2)}</td>
@@ -200,9 +198,13 @@
             document.getElementById('p-time').innerText = 'Loading...';
             return;
         }
-        const nowUTC = Math.floor(new Date().getTime() / 1000);
-        const ago = nowUTC - lastBlockTimestamp;
-        document.getElementById('p-time').innerText = formatTimeAgo(ago);
+        const now = Math.floor(Date.now() / 1000);
+        const ago = now - lastBlockTimestamp;
+        if (ago <= 0) {
+            document.getElementById('p-time').innerText = 'Just now';
+        } else {
+            document.getElementById('p-time').innerText = formatTimeAgo(ago);
+        }
     }
 
     async function fetchDeepHistory() {
@@ -319,7 +321,9 @@
             document.getElementById('p-finder').innerText = block.username ? (block.username.substring(0,8) + (block.workername ? "."+block.workername : "")) : "...";
             document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
             
-            if (block.ts) { lastBlockTimestamp = Math.floor(new Date(block.ts).getTime() / 1000); }
+            if (block.ts) { 
+                lastBlockTimestamp = Math.floor(new Date(block.ts).getTime() / 1000); 
+            }
             updateTimeSince();
 
             const sharelog = parseFloat(block.sharelog_window || 0);
