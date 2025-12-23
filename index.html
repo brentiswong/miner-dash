@@ -28,10 +28,6 @@
         th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; cursor: pointer; }
         td { padding: 12px; border-bottom: 1px solid var(--border); }
         h3 { font-size: 0.85rem; color: var(--accent); padding: 15px; margin: 0; background: #1c2128; border-bottom: 1px solid var(--border); text-transform: uppercase; }
-        input { width: 340px; padding: 12px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
-        button#login-btn { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .dual-table-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
-        @media (max-width: 900px) { .dual-table-grid { grid-template-columns: 1fr; } }
         .txid-link { color: var(--accent); text-decoration: none; font-size: 0.75rem; }
     </style>
 </head>
@@ -45,7 +41,7 @@
         <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Blocks in Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
-        <div id="p-time" style="color:#8b949e">Loading...</div>
+        <div id="p-time" style="color:#8b949e">Calculating...</div>
     </div>
 
     <div class="grid">
@@ -77,7 +73,7 @@
             <canvas id="histChart"></canvas>
         </div>
         <div class="chart-box">
-            <h3 style="background:transparent; padding:0">Live 24H</h3>
+            <h3 style="background:transparent; padding:0">Live 24H (HR & Miners)</h3>
             <canvas id="liveChart"></canvas>
         </div>
     </div>
@@ -97,14 +93,14 @@
             <h3>Last 10 Earnings</h3>
             <table>
                 <thead><tr><th>Date (UTC)</th><th>Block</th><th>Earned</th></tr></thead>
-                <tbody id="earnings-table"><tr><td colspan="3">Loading reports...</td></tr></tbody>
+                <tbody id="earnings-table"><tr><td colspan="3">Loading...</td></tr></tbody>
             </table>
         </div>
         <div class="table-container">
             <h3>Last 10 Payouts</h3>
             <table>
                 <thead><tr><th>Date (UTC)</th><th>Amount</th><th>TXID</th></tr></thead>
-                <tbody id="payouts-table"><tr><td colspan="3">Loading reports...</td></tr></tbody>
+                <tbody id="payouts-table"><tr><td colspan="3">Loading...</td></tr></tbody>
             </table>
         </div>
     </div>
@@ -114,7 +110,7 @@
     let WALLET = localStorage.getItem('ocean_wallet');
     const PROXY = 'https://api.allorigins.win/raw?url=';
     let histChart, liveChart;
-    let fullHistData = [], lastWorkers = [], lastBlockTimestamp = 0;
+    let fullHistData = [], lastBlockTimestamp = 0;
 
     function login() { 
         const v = document.getElementById('wallet-input').value.trim(); 
@@ -127,10 +123,7 @@
             const blocks = await res.json();
             const match = blocks.find(b => b.height === height);
             if (match) {
-                // Check specifically for the NiceHash address
                 if (match.minerAddress === 'bc1qzk8vs4p3skr75nskpqyh4f9l0z3hmqd2u4tvpu') return 'NiceHash';
-                
-                // Extract whatever is inside the parentheses (The Coinbase Tag)
                 const tagMatch = match.minerName ? match.minerName.match(/\(([^)]+)\)/) : null;
                 return tagMatch ? tagMatch[1] : (match.minerName || match.minerAddress.slice(0,8));
             }
@@ -138,10 +131,19 @@
         } catch (e) { return '...'; }
     }
 
+    function updateTimeSince() {
+        if (!lastBlockTimestamp) return;
+        const now = Math.floor(Date.now() / 1000);
+        const diff = now - lastBlockTimestamp;
+        if (diff < 60) document.getElementById('p-time').innerText = `${diff}s ago`;
+        else if (diff < 3600) document.getElementById('p-time').innerText = `${Math.floor(diff/60)}m ago`;
+        else document.getElementById('p-time').innerText = `${Math.floor(diff/3600)}h ago`;
+    }
+
     async function fetchDeepHistory() {
         let date = new Date();
         const results = [];
-        for(let i=0; i<12; i++) {
+        for(let i=0; i<6; i++) {
             const y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, '0');
             try {
                 const res = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_user_report/${WALLET}/${y}-${m}`));
@@ -179,7 +181,6 @@
         }
         const validE = eArr.filter(e => e.Blockheight !== "-1").sort((a,b) => new Date(b.TimeUTC) - new Date(a.TimeUTC)).slice(0,10);
         document.getElementById('earnings-table').innerHTML = validE.map(e => `<tr><td>${e.TimeUTC.replace('T',' ').split('.')[0]}</td><td>#${e.Blockheight}</td><td>${(e.NetUserRwd/1e8).toFixed(8)}</td></tr>`).join('');
-        
         const validP = pArr.sort((a,b) => new Date(b.TimeUTC) - new Date(a.TimeUTC)).slice(0,10);
         document.getElementById('payouts-table').innerHTML = validP.map(p => `<tr><td>${p.TimeUTC.replace('T',' ').split('.')[0]}</td><td>${(p.PayoutAmt/1e8).toFixed(8)}</td><td><a class="txid-link" href="https://mempool.space/tx/${p.TXID}" target="_blank">${p.TXID.slice(0,8)}...</a></td></tr>`).join('');
     }
@@ -207,7 +208,10 @@
             if(block.height) getPoolName(block.height).then(n => document.getElementById('p-finder').innerText = n);
             document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
             
-            if (block.ts) { lastBlockTimestamp = Math.floor(new Date(block.ts.replace(' ', 'T') + 'Z').getTime() / 1000); }
+            if (block.ts) { 
+                lastBlockTimestamp = Math.floor(new Date(block.ts.replace(' ', 'T') + 'Z').getTime() / 1000);
+                updateTimeSince();
+            }
 
             const target = parseFloat(block.sharelog_window || 0);
             let cum = 0, bWin = 0;
@@ -235,19 +239,35 @@
             const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
             liveChart.data.labels.push(time);
             liveChart.data.datasets[0].data.push((t5/1e15).toFixed(2));
-            if(liveChart.data.labels.length > 50) { liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); }
+            liveChart.data.datasets[1].data.push(active);
+            if(liveChart.data.labels.length > 50) { 
+                liveChart.data.labels.shift(); 
+                liveChart.data.datasets[0].data.shift(); 
+                liveChart.data.datasets[1].data.shift();
+            }
             liveChart.update();
-            
             if (!window.tablesLoaded) { fetchTables(); window.tablesLoaded = true; }
         } catch (e) {}
     }
 
     function init() {
         histChart = new Chart(document.getElementById('histChart'), { type: 'line', data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', fill: true, backgroundColor: 'rgba(88,166,255,0.1)' }] }, options: { responsive: true, maintainAspectRatio: false } });
-        liveChart = new Chart(document.getElementById('liveChart'), { type: 'line', data: { labels: [], datasets: [{ label: 'Live PH/s', data: [], borderColor: '#ff7b72', tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false } });
+        liveChart = new Chart(document.getElementById('liveChart'), { 
+            type: 'line', 
+            data: { labels: [], datasets: [
+                { label: 'PH/s', data: [], borderColor: '#58a6ff', tension: 0.3 },
+                { label: 'Miners', data: [], borderColor: '#ff7b72', tension: 0.3, yAxisID: 'y1' }
+            ]}, 
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false,
+                scales: { y1: { position: 'right', grid: { display: false }, ticks: { precision: 0 } } }
+            } 
+        });
         fetchDeepHistory();
         update(); 
         setInterval(update, 60000);
+        setInterval(updateTimeSince, 10000);
     }
     if (WALLET) init();
 </script>
