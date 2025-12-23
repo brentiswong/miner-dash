@@ -3,66 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NGU TECH - TIDES Master</title>
+    <title>NGU TECH - Stable Miner</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; --warn: #d29922; }
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
         .container { max-width: 1200px; margin: auto; }
         #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-        .login-card { background: var(--card); padding: 30px; border-radius: 12px; border: 1px solid var(--border); text-align: center; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin-bottom: 25px; }
-        .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; position: relative; overflow: hidden; }
-        .label { font-size: 0.7rem; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
-        .value { font-size: 1.6rem; font-weight: bold; margin-top: 5px; color: white; }
-        .sub-value { font-size: 0.8rem; margin-top: 5px; opacity: 0.8; }
-        .status-tag { position: absolute; top: 10px; right: 10px; font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; background: #30363d; }
-        .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-top: 25px; overflow: hidden; }
+        .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; }
+        .label { font-size: 0.7rem; color: #8b949e; text-transform: uppercase; }
+        .value { font-size: 1.6rem; font-weight: bold; color: white; margin-top: 5px; }
+        .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-top: 20px; }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 12px 15px; background: #1c2128; color: #8b949e; font-size: 0.75rem; text-transform: uppercase; }
-        td { padding: 12px 15px; border-bottom: 1px solid var(--border); font-family: monospace; }
-        input { width: 100%; padding: 12px; margin: 15px 0; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 6px; box-sizing: border-box; }
-        button { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; }
+        td { padding: 12px; border-bottom: 1px solid var(--border); font-family: monospace; }
+        input { width: 300px; padding: 12px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 6px; }
+        button { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-<div id="auth-overlay"><div class="login-card"><h2>NGU TECH LOGIN</h2><input type="text" id="wallet-input" placeholder="Enter BTC Address"><br><button onclick="login()">Launch Dashboard</button></div></div>
+<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH</h2><input type="text" id="wallet-input" placeholder="BTC Address"><br><br><button onclick="login()">Enter</button></div></div>
 
 <div class="container">
     <div class="grid">
         <div class="card">
-            <div class="label">Miner Hashrate</div>
-            <div id="t_hr" class="value">0.00 PH/s</div>
-            <div id="t_hr_sub" class="sub-value">17.7 PH/s Target</div>
+            <div class="label">Total Hashrate</div>
+            <div id="t_hr" class="value">--</div>
+            <div id="t_hr_sub" style="font-size:0.8rem; color:var(--accent)">PH/s</div>
         </div>
         <div class="card">
-            <span id="win_status" class="status-tag">ACTIVE</span>
-            <div class="label">TIDES Window Blocks</div>
-            <div id="t_blocks" class="value">0</div>
-            <div id="t_blocks_sub" class="sub-value">Loading from Pool Stats...</div>
-        </div>
-        <div class="card">
-            <div class="label">Est. Next Payout</div>
-            <div id="t_est" class="value">0.0000 BTC</div>
-            <div id="t_est_sub" class="sub-value" style="color:var(--ok)">Eligible for Reward</div>
+            <div class="label">TIDES Status</div>
+            <div id="t_blocks" class="value">Active</div>
+            <div id="t_shares" style="font-size:0.8rem; color:var(--ok)">-- Shares</div>
         </div>
         <div class="card">
             <div class="label">Unpaid Balance</div>
-            <div id="t_unpaid" class="value">0.0000 BTC</div>
-            <div id="t_usd" class="sub-value">$0.00 USD</div>
+            <div id="t_unpaid" class="value">--</div>
+            <div id="t_usd" style="font-size:0.8rem; color:var(--ok)">$0.00 USD</div>
         </div>
-    </div>
-
-    <div style="background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px;">
-        <canvas id="hashrateChart" style="height:250px;"></canvas>
+        <div class="card">
+            <div class="label">Est. Next Reward</div>
+            <div id="t_est" class="value">--</div>
+            <div style="font-size:0.8rem">BTC / Block</div>
+        </div>
     </div>
 
     <div class="table-container">
         <table>
-            <thead>
-                <tr><th>Worker</th><th>Hashrate (5m)</th><th>Hashrate (3h)</th><th>Status</th></tr>
-            </thead>
+            <thead><tr><th>Worker</th><th>5m Hashrate</th><th>3h Hashrate</th><th>Status</th></tr></thead>
             <tbody id="worker-table"></tbody>
         </table>
     </div>
@@ -71,93 +61,48 @@
 <script>
     let WALLET = localStorage.getItem('ocean_wallet');
     const PROXY = 'https://api.allorigins.win/raw?url=';
-    const OCEAN_API = 'https://api.ocean.xyz/v1';
-    let chart;
-
-    function formatHash(hps) {
-        let n = parseFloat(hps) || 0;
-        if (n >= 1e18) return { v: (n/1e18).toFixed(2), u: "EH/s" };
-        if (n >= 1e15) return { v: (n/1e15).toFixed(2), u: "PH/s" };
-        return { v: (n/1e12).toFixed(2), u: "TH/s" };
-    }
-
+    
     function login() { const v = document.getElementById('wallet-input').value.trim(); if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } }
 
     async function update() {
         if (!WALLET) return;
         document.getElementById('auth-overlay').style.display = 'none';
-        
+
         try {
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
-            const price = parseFloat((await priceRes.json())?.data?.amount) || 0;
+            const price = parseFloat((await priceRes.json()).data.amount);
 
-            // Fetching 3 sources for redundancy
-            const [hrRaw, userRaw, globalRaw] = await Promise.all([
-                fetch(PROXY + encodeURIComponent(`${OCEAN_API}/user_hashrate_full/${WALLET}`)),
-                fetch(PROXY + encodeURIComponent(`${OCEAN_API}/statsnap/${WALLET}`)),
-                fetch(PROXY + encodeURIComponent(`${OCEAN_API}/poolstats`)) // Alternative source for blocks
-            ]);
+            // Fetch Worker Data
+            const hrRes = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`));
+            const hrData = await hrRes.json();
+            
+            // Fetch Payout/Stats Data
+            const statsRes = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`));
+            const statsData = await statsRes.json();
+            const u = statsData.result || statsData;
 
-            const hrData = await hrRaw.json();
-            const uData = (await userRaw.json()).result;
-            const gData = await globalRaw.json();
-
-            // 1. Blocks Calculation
-            // Try globalStatsnap, then poolstats, then fallback to your share count indicator
-            const blockCount = gData.blocks_found || gData.pool_blocks_found_window || 0;
-            document.getElementById('t_blocks').innerText = blockCount > 0 ? blockCount : "4"; // Fallback to your confirmed count
-            document.getElementById('t_blocks_sub').innerText = blockCount > 0 ? "Blocks in current Window" : "Current TIDES Window (4 confirmed)";
-
-            // 2. Workers & Hashrate
+            // 1. Process Workers
             const workers = hrData.result?.workers || hrData.workers || {};
             let totalH = 0, rows = "";
             Object.keys(workers).forEach(name => {
                 const s = Array.isArray(workers[name]) ? workers[name][0] : workers[name];
-                const r5 = parseFloat(s.hashrate_300s || 0);
-                totalH += r5;
-                rows += `<tr><td><b>${name}</b></td><td>${(r5/1e15).toFixed(2)} PH/s</td><td>${(parseFloat(s.hashrate_10800s)/1e15).toFixed(2)} PH/s</td><td style="color:var(--ok)">ONLINE</td></tr>`;
+                const h5 = parseFloat(s.hashrate_300s || 0);
+                totalH += h5;
+                rows += `<tr><td>${name}</td><td>${(h5/1e15).toFixed(2)} PH/s</td><td>${(parseFloat(s.hashrate_10800s)/1e15).toFixed(2)} PH/s</td><td style="color:var(--ok)">ON</td></tr>`;
             });
             document.getElementById('worker-table').innerHTML = rows;
 
-            const mH = formatHash(totalH);
-            document.getElementById('t_hr').innerText = `${mH.v} ${mH.u}`;
+            // 2. Main Stats
+            document.getElementById('t_hr').innerText = (totalH / 1e15).toFixed(2) + " PH/s";
+            document.getElementById('t_unpaid').innerText = parseFloat(u.unpaid || 0).toFixed(6) + " BTC";
+            document.getElementById('t_usd').innerText = "$" + (parseFloat(u.unpaid || 0) * price).toFixed(2);
+            document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block || 0).toFixed(6);
+            document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides || 0) / 1e9).toFixed(1) + "G Shares";
 
-            // 3. TIDES Saturation
-            const shares = parseFloat(uData.shares_in_tides || 0);
-            if (shares > 0) {
-                document.getElementById('win_status').innerText = "ELIGIBLE";
-                document.getElementById('win_status').style.background = "#238636";
-            }
-
-            // 4. Payouts
-            const est = parseFloat(uData.estimated_earn_next_block || 0);
-            document.getElementById('t_est').innerText = est.toFixed(6) + " BTC";
-            
-            const unpaid = parseFloat(uData.unpaid || 0);
-            document.getElementById('t_unpaid').innerText = unpaid.toFixed(8) + " BTC";
-            document.getElementById('t_usd').innerText = `$${(unpaid * price).toLocaleString(undefined, {minimumFractionDigits:2})} USD`;
-
-            // Charting
-            const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            chart.data.labels.push(now);
-            chart.data.datasets[0].data.push(mH.v);
-            if (chart.data.labels.length > 50) { chart.data.labels.shift(); chart.data.datasets[0].data.shift(); }
-            chart.update();
-
-        } catch (e) { console.error("Update failed", e); }
+        } catch (e) { console.error("Error updating:", e); }
     }
 
-    function init() {
-        const ctx = document.getElementById('hashrateChart').getContext('2d');
-        chart = new Chart(ctx, {
-            type: 'line',
-            data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', tension: 0.3, fill: true, backgroundColor: 'rgba(88,166,255,0.1)' }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-        });
-        update();
-        setInterval(update, 60000);
-    }
-    if (WALLET) init();
+    if (WALLET) { update(); setInterval(update, 60000); }
 </script>
 </body>
 </html>
