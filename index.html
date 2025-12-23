@@ -38,10 +38,10 @@
 
 <div class="container">
     <div class="pool-status">
-        <div class="stat-item"><span class="pool-label">Pool HR:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Pool Hashrate:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
-        <div class="stat-item"><span class="pool-label">TIDES Luck:</span> <span id="p-luck" style="color:var(--accent)">...</span></div>
-        <div class="stat-item"><span class="pool-label">Rolling Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Blocks in Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
         <div id="p-time" style="color:#8b949e">Loading...</div>
     </div>
 
@@ -98,7 +98,7 @@
     </div>
 
     <div class="table-container">
-        <h3>Last 10 Earnings (Monthly Report Data)</h3>
+        <h3>Last 10 Earnings</h3>
         <table>
             <thead>
                 <tr>
@@ -188,7 +188,7 @@
     async function fetchAndRenderEarnings() {
         let date = new Date();
         let allEarnings = [];
-        for(let i = 0; i < 6; i++) {
+        for(let i = 0; i < 4; i++) {
             const y = date.getFullYear();
             const m = String(date.getMonth() + 1).padStart(2, '0');
             const url = `https://api.ocean.xyz/v1/monthly_earnings_report/${WALLET}/${y}-${m}`;
@@ -228,7 +228,7 @@
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=30`))
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=40`))
             ]);
 
             const hrData = await hrRes.json();
@@ -239,6 +239,7 @@
 
             const block = pData.result?.blocks?.[0] || {};
             document.getElementById('p-height').innerText = "#" + (block.height || "...");
+            document.getElementById('p-finder').innerText = block.username ? (block.username.substring(0,10)) : "...";
             document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
             
             if (block.ts) {
@@ -247,27 +248,19 @@
                 updateTimeSince();
             }
 
-            // TIDES Luck Calculation (Rolling Window Logic)
             const targetWindow = parseFloat(block.sharelog_window || 0);
             const blocks = blocksData.result?.blocks || [];
-            blocks.sort((a, b) => b.height - a.height); // Most recent first
+            blocks.sort((a, b) => b.height - a.height); 
 
             let cumulativeShares = 0;
-            let blockCount = 0;
-            // Iterate until we reach the target window capacity
+            let blocksInWindow = 0;
             for (const b of blocks) {
                 cumulativeShares += parseFloat(b.accepted_shares || 0);
-                blockCount++;
                 if (cumulativeShares >= targetWindow) break;
+                blocksInWindow++;
             }
 
-            // Luck = (Ideal Shares for 8 blocks / Actual Shares to get 8 blocks)
-            // Or more accurately in TIDES: (Target Window Size / Actual Shares in that period)
-            // If actual shares < target window, luck is > 100%
-            const luck = (targetWindow / (cumulativeShares || 1)) * 100;
-            
-            document.getElementById('p-blocks').innerText = blockCount + " Blocks";
-            document.getElementById('p-luck').innerText = luck.toFixed(1) + "%";
+            document.getElementById('p-blocks').innerText = blocksInWindow + " Blocks";
 
             const unpaid = parseFloat(u.unpaid||0);
             document.getElementById('t_unpaid').innerText = unpaid.toFixed(8);
@@ -294,7 +287,6 @@
             liveChart.data.datasets[1].data.push(active);
             if(liveChart.data.labels.length > 144) { liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); liveChart.data.datasets[1].data.shift(); }
             liveChart.update();
-            localStorage.setItem('live_v4', JSON.stringify({l: liveChart.data.labels, h: liveChart.data.datasets[0].data, w: liveChart.data.datasets[1].data}));
 
             if (!window.earningsLoaded) {
                 await fetchAndRenderEarnings();
