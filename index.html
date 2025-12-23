@@ -152,13 +152,18 @@
         if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); }
     }
 
-    // FIXED: Single Call to Mempool OCEAN API for the Coinbase Tag / Miner Name
+    // UPDATED: Logic to extract the coinbase tag from the parenthesis in minerName
     async function getPoolName(height) {
         try {
             const res = await fetch(`https://mempool.space/api/v1/mining/pool/ocean/blocks`);
             const blocks = await res.json();
             const match = blocks.find(b => b.height === height);
-            return match ? match.minerName : null;
+            if (match && match.minerName) {
+                // Splits "OCEAN Pool (TAG)" and returns "TAG"
+                const parts = match.minerName.split('(');
+                return parts.length > 1 ? parts[1].replace(')', '').trim() : match.minerName;
+            }
+            return null;
         } catch (e) { return null; }
     }
 
@@ -237,7 +242,8 @@
 
         try {
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
-            const price = parseFloat((await priceRes.json()).data.amount);
+            const priceData = await priceRes.json();
+            const price = parseFloat(priceData.data.amount);
 
             const [hrRes, uRes, poolRes, pHRRes, blocksRes] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
