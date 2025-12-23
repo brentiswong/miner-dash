@@ -189,17 +189,20 @@
     }
 
     function formatTimeAgo(secondsAgo) {
-        if (secondsAgo < 0) secondsAgo = 0;
-        const days = Math.floor(secondsAgo / 86400);
-        const hours = Math.floor((secondsAgo % 86400) / 3600);
-        const minutes = Math.floor((secondsAgo % 3600) / 60);
-        const seconds = Math.floor(secondsAgo % 60);
+        // Force calculation even if 0, but prevent negative
+        const s = Math.max(0, Math.floor(secondsAgo));
+        
+        const days = Math.floor(s / 86400);
+        const hours = Math.floor((s % 86400) / 3600);
+        const minutes = Math.floor((s % 3600) / 60);
+        const seconds = Math.floor(s % 60);
 
         let parts = [];
         if (days > 0) parts.push(`${days}d`);
         if (hours > 0) parts.push(`${hours}h`);
         if (minutes > 0) parts.push(`${minutes}m`);
-        if (parts.length < 2) parts.push(`${seconds}s`);
+        // Always show seconds to prove it's working
+        parts.push(`${seconds}s`);
         
         return parts.join(' ') + ' ago';
     }
@@ -249,6 +252,7 @@
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const price = parseFloat((await priceRes.json()).data.amount);
 
+            // Fetch data
             const [hrRes, uRes, poolRes, pHRRes, blocksRes] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
@@ -259,20 +263,25 @@
 
             const hrData = await hrRes.json();
             const u = (await uRes.json()).result || {};
-            const pData = await poolRes.json();
             const pHR = await pHRRes.json();
             const blocksData = await blocksRes.json();
 
-            const block = pData.result?.blocks?.[0] || {};
+            // FIXED: We now source the block data primarily from the 'blocks' list
+            // because the 'latest_block' endpoint structure is unreliable.
+            const block = blocksData.result?.blocks?.[0] || {};
+            
             document.getElementById('p-height').innerText = "#" + (block.height || "...");
             document.getElementById('p-finder').innerText = block.username ? (block.username.substring(0,8) + (block.workername ? "."+block.workername : "")) : "...";
             document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
             
             if (block.ts) { 
-                // NEW LOGIC: Record age immediately on arrival
+                const now = Date.now() / 1000;
                 const blockTime = new Date(block.ts).getTime() / 1000;
-                lastFetchTime = Date.now() / 1000;
-                blockAgeAtFetch = lastFetchTime - blockTime;
+                
+                // Calculate age. If negative (skew), clamp to 0 so we don't show "0s" for long.
+                const age = now - blockTime;
+                blockAgeAtFetch = Math.max(0, age);
+                lastFetchTime = now;
             }
             updateTimeSince();
 
