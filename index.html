@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>NGU TECH - Ultimate Dashboard</title>
+    <title>NGU TECH - Reward Tracker</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --dead: #f85149; }
@@ -20,13 +20,13 @@
         th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; cursor: pointer; }
         td { padding: 12px; border-bottom: 1px solid var(--border); font-family: monospace; font-size: 0.85rem; }
         h3 { font-size: 0.85rem; color: var(--accent); padding: 15px; margin: 0; background: #1c2128; border-bottom: 1px solid var(--border); text-transform: uppercase; }
-        input { width: 300px; padding: 10px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
-        button { background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        input { width: 340px; padding: 12px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
+        button { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH Dashboard</h2><input type="text" id="wallet-input" placeholder="Enter Wallet Address"><br><br><button onclick="login()">Sync Dashboard</button></div></div>
+<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH Dashboard</h2><input type="text" id="wallet-input" placeholder="Enter BTC Address"><br><br><button onclick="login()">Sync Dashboard</button></div></div>
 
 <div class="container">
     <div class="grid">
@@ -50,12 +50,12 @@
     <div class="chart-box"><canvas id="hashrateChart"></canvas></div>
 
     <div class="table-container">
-        <h3>Recent Block Earnings (Live Monthly Report)</h3>
+        <h3>Monthly Earnings Report (Base Endpoint)</h3>
         <table>
             <thead>
                 <tr><th>Block Height</th><th>Net Reward (Sats)</th><th>Fee Reward (Sats)</th><th>Date (UTC)</th></tr>
             </thead>
-            <tbody id="reward-table"><tr><td colspan="4">Syncing with blockchain...</td></tr></tbody>
+            <tbody id="reward-table"><tr><td colspan="4">Fetching latest rewards...</td></tr></tbody>
         </table>
     </div>
 
@@ -112,24 +112,23 @@
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const price = parseFloat((await priceRes.json()).data.amount);
 
-            // Fetch current month report
-            const now = new Date();
-            const ym = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+            // Simplified URL as per user instruction
+            const earnUrl = `https://api.ocean.xyz/v1/monthly_earnings_report/${WALLET}`;
 
             const [hrRes, uRes, earnRes] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_earnings_report/${WALLET}/${ym}`))
+                fetch(PROXY + encodeURIComponent(earnUrl))
             ]);
 
             const hrData = await hrRes.json();
             const u = (await uRes.json()).result || {};
             
-            // Robust parsing for earnings raw array or result object
-            let rawEarn = await earnRes.json();
-            let earnings = Array.isArray(rawEarn) ? rawEarn : (rawEarn.result || []);
+            // Handle raw array response
+            let earnings = await earnRes.json();
+            if (earnings.result) earnings = earnings.result;
 
-            // 1. Averages & Workers
+            // 1. Worker List & Averages
             const workers = hrData.result?.workers || hrData.workers || {};
             let t5=0, t3=0, t24=0;
             lastWorkers = Object.keys(workers).map(name => {
@@ -152,9 +151,9 @@
             document.getElementById('t_est').innerText = Math.floor(parseFloat(u.estimated_earn_next_block||0) * 1e8).toLocaleString() + " Sats";
             document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides || 0) / 1e9).toFixed(2) + "G Shares";
 
-            // 3. Render Earnings (Latest 15)
-            if (earnings.length > 0) {
-                const sorted = earnings.sort((a,b) => b.Blockheight - a.Blockheight).slice(0, 15);
+            // 3. Render Earnings (Latest 20)
+            if (Array.isArray(earnings) && earnings.length > 0) {
+                const sorted = earnings.sort((a,b) => b.Blockheight - a.Blockheight).slice(0, 20);
                 document.getElementById('reward-table').innerHTML = sorted.map(b => `
                     <tr>
                         <td><b>#${b.Blockheight}</b></td>
@@ -164,17 +163,20 @@
                     </tr>
                 `).join('');
             } else {
-                document.getElementById('reward-table').innerHTML = `<tr><td colspan="4">No blocks found for ${ym} yet.</td></tr>`;
+                document.getElementById('reward-table').innerHTML = `<tr><td colspan="4">No data found in monthly report.</td></tr>`;
             }
 
-            // 4. Graph
-            const ts = now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            // 4. Graph Update
+            const ts = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
             hChart.data.labels.push(ts);
             hChart.data.datasets[0].data.push((t5/1e15).toFixed(2));
             if(hChart.data.labels.length > 25) { hChart.data.labels.shift(); hChart.data.datasets[0].data.shift(); }
             hChart.update();
 
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+            console.error("Fetch failed", e);
+            document.getElementById('reward-table').innerHTML = `<tr><td colspan="4" style="color:var(--dead)">API connection timeout. Check address and proxy.</td></tr>`;
+        }
     }
 
     function init() {
