@@ -39,7 +39,7 @@
 </head>
 <body>
 
-<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH Dashboard</h2><input type="text" id="wallet-input" placeholder="Enter BTC Address"><br><br><button id="login-btn" onclick="login()">Sync Dashboard</button></div></div>
+<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH Dashboard</h2><input type="text" id="wallet-input" placeholder="Enter BTC Address"><br><br><button id="login-btn">Sync Dashboard</button></div></div>
 
 <div class="container">
     <div class="pool-status">
@@ -152,9 +152,28 @@
     let currentSort = { key: 'name', asc: true };
     let lastBlockTimestamp = 0;
 
+    // Fixed button and Enter key with DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', () => {
+        const loginBtn = document.getElementById('login-btn');
+        const walletInput = document.getElementById('wallet-input');
+
+        loginBtn.addEventListener('click', login);
+        loginBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            login();
+        });
+
+        walletInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') login();
+        });
+    });
+
     function login() { 
         const v = document.getElementById('wallet-input').value.trim(); 
-        if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } 
+        if(v) { 
+            localStorage.setItem('ocean_wallet', v); 
+            location.reload(); 
+        } 
     }
 
     function updateWalletFooter() {
@@ -203,37 +222,37 @@
         document.getElementById('p-time').innerText = formatTimeAgo(ago);
     }
 
-    // ... (rest of functions unchanged: fetchDeepHistory, filterHist, fetchAndRenderEarnings, fetchAndRenderPayouts)
+    // ... (rest of the script — fetchDeepHistory, filterHist, fetchAndRenderEarnings, fetchAndRenderPayouts unchanged)
 
     async function update() {
         if (!WALLET) return;
         document.getElementById('auth-overlay').style.display = 'none';
 
         try {
-            // ... (fetches and main stats unchanged)
+            // ... (fetches unchanged)
 
             if (block.ts) { 
                 lastBlockTimestamp = Math.floor(new Date(block.ts).getTime() / 1000); 
             }
-            updateTimeSince(); // Update immediately after new timestamp
+            updateTimeSince(); // Immediate update
 
-            // ... (rest of update unchanged)
+            // ... (rest unchanged)
 
         } catch (e) { console.error(e); }
     }
 
     async function init() {
-        // ... (chart init unchanged)
+        // ... (charts unchanged)
 
         if (WALLET) {
             await fetchDeepHistory();
             update(); 
             setInterval(update, 60000);
-            setInterval(updateTimeSince, 1000); // Update every second for smooth ticking
+            setInterval(updateTimeSince, 1000); // Live ticking every second
         }
     }
 
-    if (WALLET) init();
+    init();
 </script>
 </body>
 </html>
