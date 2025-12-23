@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NGU TECH - TIDES Master</title>
+    <title>NGU TECH - Full Miner Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; --warn: #d29922; }
@@ -11,48 +11,64 @@
         .container { max-width: 1200px; margin: auto; }
         #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
         .login-card { background: var(--card); padding: 30px; border-radius: 12px; border: 1px solid var(--border); text-align: center; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 15px; margin-bottom: 25px; }
-        .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; position: relative; overflow: hidden; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; }
         .label { font-size: 0.7rem; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
-        .value { font-size: 1.8rem; font-weight: bold; margin-top: 5px; color: white; }
-        .sub-value { font-size: 0.8rem; margin-top: 5px; opacity: 0.9; }
-        .progress-bg { position: absolute; bottom: 0; left: 0; height: 4px; background: #30363d; width: 100%; }
-        .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 1s; }
+        .value { font-size: 1.6rem; font-weight: bold; margin-top: 5px; color: white; }
+        .sub-value { font-size: 0.8rem; margin-top: 5px; opacity: 0.8; }
+        .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-top: 25px; overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 12px 15px; background: #1c2128; color: #8b949e; font-size: 0.75rem; text-transform: uppercase; }
+        td { padding: 12px 15px; border-bottom: 1px solid var(--border); font-family: monospace; }
+        .status-on { color: var(--ok); font-weight: bold; }
         button { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: bold; }
         input { width: 100%; padding: 12px; margin: 15px 0; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 6px; box-sizing: border-box; }
     </style>
 </head>
 <body>
 
-<div id="auth-overlay"><div class="login-card"><h2>NGU TECH LOGIN</h2><input type="text" id="wallet-input" placeholder="Enter BTC Address"><br><button onclick="login()">Access TIDES Dashboard</button></div></div>
+<div id="auth-overlay"><div class="login-card"><h2>NGU TECH LOGIN</h2><input type="text" id="wallet-input" placeholder="Enter BTC Address"><br><button onclick="login()">Launch Dashboard</button></div></div>
 
 <div class="container">
     <div class="grid">
         <div class="card">
-            <div class="label">Miner Hashrate</div>
-            <div id="t_hr" class="value">--</div>
-            <div id="t_hr_sub" class="sub-value" style="color:var(--accent)">17.7 PH/s Target</div>
+            <div class="label">Total Hashrate</div>
+            <div id="t_hr" class="value">0.00 PH/s</div>
+            <div id="t_hr_sub" class="sub-value" style="color:var(--accent)">Updating...</div>
         </div>
         <div class="card">
-            <div class="label">TIDES Shares In Window</div>
-            <div id="t_tides_shares" class="value">--</div>
-            <div id="t_tides_sub" class="sub-value">Current Shares Accounted</div>
-            <div class="progress-bg"><div id="tides_bar" class="progress-fill"></div></div>
+            <div class="label">TIDES Shares</div>
+            <div id="t_tides" class="value">0.0 G</div>
+            <div id="t_tides_sub" class="sub-value">Active in Window</div>
         </div>
         <div class="card">
-            <div class="label">Est. Next Block Payout</div>
-            <div id="t_est" class="value">--</div>
-            <div id="t_est_sub" class="sub-value" style="color:var(--ok)">Pending Reward</div>
+            <div class="label">Est. Next Payout</div>
+            <div id="t_est" class="value">0.0000 BTC</div>
+            <div id="t_est_sub" class="sub-value" style="color:var(--ok)">Per Block</div>
         </div>
         <div class="card">
-            <div class="label">Balance (Unpaid)</div>
-            <div id="t_unpaid" class="value">--</div>
+            <div class="label">Unpaid Balance</div>
+            <div id="t_unpaid" class="value">0.0000 BTC</div>
             <div id="t_usd" class="sub-value">$0.00 USD</div>
         </div>
     </div>
 
     <div style="background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px;">
-        <canvas id="hashrateChart" style="height:350px;"></canvas>
+        <canvas id="hashrateChart" style="height:250px;"></canvas>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Worker</th>
+                    <th>Hashrate (5m)</th>
+                    <th>Hashrate (3h)</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="worker-table"></tbody>
+        </table>
     </div>
 </div>
 
@@ -63,8 +79,7 @@
     let chart;
 
     function formatHash(hps) {
-        let n = parseFloat(hps);
-        if (!n || n <= 0) return { v: "0.00", u: "TH/s" };
+        let n = parseFloat(hps) || 0;
         if (n >= 1e18) return { v: (n/1e18).toFixed(2), u: "EH/s" };
         if (n >= 1e15) return { v: (n/1e15).toFixed(2), u: "PH/s" };
         if (n >= 1e12) return { v: (n/1e12).toFixed(2), u: "TH/s" };
@@ -90,54 +105,61 @@
             const userData = await userRaw.json();
             const u = userData.result || userData;
 
-            // 1. Precise Hashrate Calculation
+            // 1. Worker Table & Total Hashrate
             const workers = hrData.result?.workers || hrData.workers || {};
             let totalH = 0;
-            Object.values(workers).forEach(w => {
-                const s = Array.isArray(w) ? w[0] : w;
-                totalH += parseFloat(s.hashrate_300s || 0);
+            let rows = "";
+            
+            Object.keys(workers).forEach(name => {
+                const s = Array.isArray(workers[name]) ? workers[name][0] : workers[name];
+                const r5 = parseFloat(s.hashrate_300s || 0);
+                const r3 = parseFloat(s.hashrate_10800s || 0);
+                totalH += r5;
+                rows += `<tr>
+                    <td><b>${name}</b></td>
+                    <td>${(r5/1e15).toFixed(2)} PH/s</td>
+                    <td>${(r3/1e15).toFixed(2)} PH/s</td>
+                    <td class="status-on">ONLINE</td>
+                </tr>`;
             });
+            document.getElementById('worker-table').innerHTML = rows;
+
             const mH = formatHash(totalH);
             document.getElementById('t_hr').innerText = `${mH.v} ${mH.u}`;
+            document.getElementById('t_hr_sub').innerText = "Nodes: " + Object.keys(workers).length;
 
-            // 2. TIDES Specific Metrics
+            // 2. TIDES Data
             const tidesShares = parseFloat(u.shares_in_tides || 0);
-            document.getElementById('t_tides_shares').innerText = (tidesShares / 1e9).toFixed(1) + "G";
-            // Visual feedback: If shares exist, show a pulsing bar
-            document.getElementById('tides_bar').style.width = tidesShares > 0 ? "100%" : "0%";
-            document.getElementById('tides_bar').style.backgroundColor = tidesShares > 0 ? "var(--ok)" : "var(--warn)";
-
-            // 3. Estimated Block Payout
+            document.getElementById('t_tides').innerText = (tidesShares / 1e9).toFixed(1) + " G";
+            
+            // 3. Payouts
             const est = parseFloat(u.estimated_earn_next_block || 0);
             document.getElementById('t_est').innerText = est.toFixed(6) + " BTC";
-            document.getElementById('t_est_sub').innerText = "Total: " + parseFloat(u.estimated_total_earn_next_block || 0).toFixed(6);
-
-            // 4. Balance
+            
             const unpaid = parseFloat(u.unpaid || 0);
             document.getElementById('t_unpaid').innerText = unpaid.toFixed(8) + " BTC";
             document.getElementById('t_usd').innerText = `$${(unpaid * price).toLocaleString(undefined, {minimumFractionDigits:2})} USD`;
 
-            // Charting
+            // 4. Charting
             const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             chart.data.labels.push(now);
             chart.data.datasets[0].data.push(mH.v);
             if (chart.data.labels.length > 50) { chart.data.labels.shift(); chart.data.datasets[0].data.shift(); }
             chart.update();
 
-        } catch (e) { console.error("Update Error", e); }
+        } catch (e) { console.error("Update failed", e); }
     }
 
     function init() {
         const ctx = document.getElementById('hashrateChart').getContext('2d');
         chart = new Chart(ctx, {
             type: 'line',
-            data: { labels: [], datasets: [{ label: 'Hashrate (Live)', data: [], borderColor: '#58a6ff', tension: 0.3, fill: true, backgroundColor: 'rgba(88,166,255,0.1)' }] },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } }, x: { grid: { display: false }, ticks: { color: '#8b949e' } } }, plugins: { legend: { display: false } } }
+            data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', tension: 0.3, fill: true, backgroundColor: 'rgba(88,166,255,0.1)' }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
         });
         update();
         setInterval(update, 60000);
     }
-
     if (WALLET) init();
 </script>
 </body>
