@@ -3,32 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ocean Miner Dashboard - NGU TECH</title>
+    <title>Ocean Miner Dashboard - Persistent History</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { 
-            --bg: #0d1117; 
-            --card: #161b22; 
-            --text: #c9d1d9; 
-            --accent: #58a6ff; 
-            --border: #30363d; 
-            --ok: #3fb950; 
-            --err: #f85149; 
-        }
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
         .container { max-width: 1200px; margin: auto; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 25px; }
-        .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .label { font-size: 0.9rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05rem; }
+        .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; }
+        .label { font-size: 0.9rem; color: #8b949e; text-transform: uppercase; }
         .value { font-size: 2rem; font-weight: bold; color: white; margin-top: 5px; }
         .sub-value { font-size: 0.9rem; color: var(--accent); margin-top: 5px; }
         .chart-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 25px; height: 350px; }
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 15px; background: #1c2128; color: #8b949e; cursor: pointer; border-bottom: 1px solid var(--border); }
-        td { padding: 15px; border-bottom: 1px solid var(--border); font-size: 0.95rem; }
-        tr:hover { background: rgba(88, 166, 255, 0.05); }
-        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        th { text-align: left; padding: 15px; background: #1c2128; color: #8b949e; cursor: pointer; }
+        td { padding: 15px; border-bottom: 1px solid var(--border); }
     </style>
 </head>
 <body>
@@ -47,22 +37,20 @@
         <div class="card">
             <div class="label">BTC/USD Spot</div>
             <div class="value" id="btc_price">$0.00</div>
-            <div class="sub-value">Live from Coinbase</div>
+            <div class="sub-value">Direct Live Feed</div>
         </div>
     </div>
 
-    <div class="chart-container">
-        <canvas id="hashrateChart"></canvas>
-    </div>
+    <div class="chart-container"><canvas id="hashrateChart"></canvas></div>
 
     <div class="table-container">
         <table>
             <thead>
                 <tr>
-                    <th onclick="doSort('name')">Worker Name ↕</th>
-                    <th onclick="doSort('h300')">Hashrate (5m) ↕</th>
-                    <th onclick="doSort('h10800')">Hashrate (3h) ↕</th>
-                    <th onclick="doSort('online')">Status ↕</th>
+                    <th onclick="doSort('name')">Worker ↕</th>
+                    <th onclick="doSort('h300')">5m Hash ↕</th>
+                    <th onclick="doSort('h10800')">3h Hash ↕</th>
+                    <th>Status</th>
                 </tr>
             </thead>
             <tbody id="w-body"></tbody>
@@ -71,118 +59,95 @@
 </div>
 
 <script>
-    // DASHBOARD CONFIGURATION
     const WALLET = "bc1q76zgkz5ussy2hl54vdz7nv0q96kta82ckdu7ys";
-    const PROXY_BASE = 'https://api.allorigins.win/raw?url=';
-    const OCEAN_BASE = 'https://api.ocean.xyz/v1';
+    const PROXY = 'https://api.allorigins.win/raw?url=';
+    const OCEAN_API = 'https://api.ocean.xyz/v1';
     
     let chart;
     let workers = [];
     let sortKey = 'h300';
     let sortAsc = false;
 
-    // Initialize Chart.js
+    // --- PERSISTENCE LOGIC ---
+    function getHistory() {
+        const saved = localStorage.getItem('miner_history_v2');
+        return saved ? JSON.parse(saved) : { labels: [], points: [] };
+    }
+
+    function saveHistory(labels, points) {
+        // Keep only last 288 points (24 hours @ 5-min intervals)
+        if (labels.length > 288) {
+            labels = labels.slice(-288);
+            points = points.slice(-288);
+        }
+        localStorage.setItem('miner_history_v2', JSON.stringify({ labels, points }));
+    }
+
     function initChart() {
+        const history = getHistory();
         const ctx = document.getElementById('hashrateChart').getContext('2d');
         chart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: [],
+                labels: history.labels,
                 datasets: [{
-                    label: 'Total Hashrate (TH/s)',
-                    data: [],
+                    label: 'TH/s',
+                    data: history.points,
                     borderColor: '#58a6ff',
                     backgroundColor: 'rgba(88, 166, 255, 0.1)',
-                    borderWidth: 2,
-                    pointRadius: 3,
-                    tension: 0.4,
-                    fill: true
+                    fill: true,
+                    tension: 0.3
                 }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: { 
-                        beginAtZero: true, 
-                        grid: { color: '#30363d' },
-                        ticks: { color: '#8b949e' }
-                    },
-                    x: { 
-                        grid: { display: false },
-                        ticks: { color: '#8b949e' }
-                    }
-                }
-            }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
         });
     }
 
     async function update() {
         try {
-            // URL Construction
-            const hrUrl = PROXY_BASE + encodeURIComponent(`${OCEAN_BASE}/user_hashrate_full/${WALLET}`);
-            const snUrl = PROXY_BASE + encodeURIComponent(`${OCEAN_BASE}/statsnap/${WALLET}`);
-            const btcUrl = "https://api.coinbase.com/v2/prices/BTC-USD/spot";
+            // Direct price fetch (No proxy needed for Coinbase)
+            const btcRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
+            const btcJson = await btcRes.json();
+            const price = parseFloat(btcJson.data.amount);
+            document.getElementById('btc_price').innerText = `$${price.toLocaleString()}`;
 
-            // Concurrent API Calls
-            const [hrRes, snRes, btcRes] = await Promise.all([
-                fetch(hrUrl), fetch(snUrl), fetch(btcUrl)
-            ]);
-
+            // Ocean Data via Proxy
+            const hrUrl = PROXY + encodeURIComponent(`${OCEAN_API}/user_hashrate_full/${WALLET}`);
+            const snUrl = PROXY + encodeURIComponent(`${OCEAN_API}/statsnap/${WALLET}`);
+            const [hrRes, snRes] = await Promise.all([fetch(hrUrl), fetch(snUrl)]);
             const hrData = await hrRes.json();
             const snData = await snRes.json();
-            const btcData = await btcRes.json();
 
-            // 1. Process BTC Price & Earnings
-            const currentPrice = parseFloat(btcData.data.amount);
-            document.getElementById('btc_price').innerText = `$${currentPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-
+            // Earnings Calculation
             const stats = snData.result || snData;
-            const satsBalance = stats.unpaid || 0;
-            const usdBalance = (satsBalance / 100000000) * currentPrice;
-            
-            document.getElementById('t_unpaid').innerText = `${satsBalance.toLocaleString()} sats`;
-            document.getElementById('t_usd').innerText = `Valuation: $${usdBalance.toFixed(2)} USD`;
+            const sats = stats.unpaid || 0;
+            const usdVal = (sats / 100000000) * price;
+            document.getElementById('t_unpaid').innerText = `${sats.toLocaleString()} sats`;
+            document.getElementById('t_usd').innerText = `Valuation: $${usdVal.toFixed(2)} USD`;
 
-            // 2. Process Hashrate & Workers
+            // Hashrate Processing
             const wObj = hrData.result?.workers || {};
-            let total5m = 0;
-            let total3h = 0;
-
+            let total5m = 0, total3h = 0;
             workers = Object.keys(wObj).map(name => {
                 const s = wObj[name][0];
                 const h5 = (s.hashrate_300s || 0) / 1e12;
                 const h3 = (s.hashrate_10800s || 0) / 1e12;
-                total5m += h5;
-                total3h += h3;
-                return { 
-                    name, 
-                    h300: h5, 
-                    h10800: h3, 
-                    online: h5 > 0 
-                };
+                total5m += h5; total3h += h3;
+                return { name, h300: h5, h10800: h3, online: h5 > 0 };
             });
 
             document.getElementById('t_hr').innerText = `${total5m.toFixed(2)} TH/s`;
             document.getElementById('t_hr_3h').innerText = `3h Avg: ${total3h.toFixed(2)} TH/s`;
 
-            // 3. Update Chart
-            const timeLabel = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            chart.data.labels.push(timeLabel);
+            // Graph Update & Persistence
+            const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            chart.data.labels.push(now);
             chart.data.datasets[0].data.push(total5m.toFixed(2));
-            
-            // Keep last 12 points (1 hour of data at 5m intervals)
-            if (chart.data.labels.length > 12) {
-                chart.data.labels.shift();
-                chart.data.datasets[0].data.shift();
-            }
             chart.update();
+            saveHistory(chart.data.labels, chart.data.datasets[0].data);
 
             render();
-        } catch (e) {
-            console.error("Dashboard update failed:", e);
-        }
+        } catch (e) { console.error("Update failed", e); }
     }
 
     function doSort(key) {
@@ -196,24 +161,19 @@
             let vA = a[sortKey], vB = b[sortKey];
             return sortAsc ? (vA > vB ? 1 : -1) : (vA < vB ? 1 : -1);
         });
-        
         document.getElementById('w-body').innerHTML = workers.map(w => `
             <tr>
-                <td><strong>${w.name}</strong></td>
-                <td>${w.h300.toFixed(2)} TH/s</td>
-                <td>${w.h10800.toFixed(2)} TH/s</td>
-                <td>
-                    <span class="status-dot" style="background-color: ${w.online ? 'var(--ok)' : 'var(--err)'}"></span>
-                    ${w.online ? 'Active' : 'Inactive'}
-                </td>
+                <td><b>${w.name}</b></td>
+                <td>${w.h300.toFixed(2)}</td>
+                <td>${w.h10800.toFixed(2)}</td>
+                <td><span style="color:${w.online ? 'var(--ok)':'var(--err)'}">${w.online?'● Online':'○ Offline'}</span></td>
             </tr>
         `).join('');
     }
 
-    // Initial Execution
     initChart();
     update();
-    setInterval(update, 300000); // Refresh every 5 minutes
+    setInterval(update, 300000);
 </script>
 </body>
 </html>
