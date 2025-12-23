@@ -1,0 +1,42 @@
+name: Sync Miner History
+on:
+  schedule:
+    - cron: '0 * * * *' # This wakes the bot up every hour
+  workflow_dispatch: # This adds a "Run Now" button for you
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Important: Allows the bot to save the history.json file
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Fetch 2-Year Ocean Data
+        run: |
+          WALLET="bc1q76zgkz5ussy2hl54vdz7nv0q96kta82ckdu7ys"
+          echo '{"result": {"report": []}}' > history.json
+          for i in {0..23}; do
+            TARGET_DATE=$(date -d "$i month ago" +%Y-%m)
+            echo "Fetching $TARGET_DATE..."
+            curl -s "https://api.ocean.xyz/v1/monthly_user_report/$WALLET/$TARGET_DATE" > temp.json
+            python3 -c "
+            import json
+            try:
+                with open('history.json') as f: master = json.load(f)
+                with open('temp.json') as f: new_data = json.load(f)
+                if 'result' in new_data and 'report' in new_data['result']:
+                    master['result']['report'].extend(new_data['result']['report'])
+                with open('history.json', 'w') as f: json.dump(master, f)
+            except: pass
+            "
+          done
+
+      - name: Commit and Push
+        run: |
+          git config --global user.name "NGU-Bot"
+          git config --global user.email "bot@ngu.tech"
+          git add history.json
+          git commit -m "Update 2-year history [skip ci]" || echo "No changes"
+          git push
