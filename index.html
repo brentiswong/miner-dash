@@ -8,16 +8,28 @@
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --dead: #f85149; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; }
         .container { max-width: 1200px; margin: auto; }
+        
+        /* Top Banner */
+        .pool-status { background: #1c2128; border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; flex-wrap: wrap; gap: 10px; }
+        .stat-item { display: flex; align-items: center; gap: 6px; }
+        .pool-label { color: #8b949e; text-transform: uppercase; font-size: 0.65rem; font-weight: 700; }
+        
+        /* Dashboard Cards */
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 20px; }
         .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; }
         .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; font-family: monospace; }
+        
+        /* Graphs */
         .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
         @media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
         .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 350px; position: relative; }
-        #status-bar { font-size: 0.7rem; color: var(--accent); margin-bottom: 10px; font-weight: bold; background: #1c2128; padding: 5px 10px; border-radius: 4px; display: inline-block; }
-        table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; background: var(--card); border: 1px solid var(--border); border-radius: 8px; }
+        
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
         th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; }
         td { padding: 12px; border-bottom: 1px solid var(--border); }
+        
+        #status-bar { font-size: 0.7rem; color: var(--accent); margin-bottom: 10px; font-weight: bold; background: #1c2128; padding: 5px 10px; border-radius: 4px; display: inline-block; text-transform: uppercase; }
         .controls { position: absolute; top: 10px; right: 15px; z-index: 10; display: flex; gap: 5px; }
         .btn-sm { background: #30363d; color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 0.65rem; cursor: pointer; }
         .btn-sm:hover { background: var(--accent); }
@@ -26,11 +38,18 @@
 <body>
 
 <div class="container">
-    <div id="status-bar">CONNECTING TO CACHE...</div>
+    <div id="status-bar">Initializing System...</div>
     
+    <div class="pool-status">
+        <div class="stat-item"><span class="pool-label">Pool HR:</span> <span id="p-hr-global" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
+        <div id="p-time" style="color:#8b949e">Calculating...</div>
+    </div>
+
     <div class="grid">
         <div class="card">
-            <div style="font-size:0.65rem; color:#8b949e">LIVE HASHRATE (5M)</div>
+            <div style="font-size:0.65rem; color:#8b949e">USER HASHRATE (5M)</div>
             <div id="t_hr" class="value">...</div>
         </div>
         <div class="card">
@@ -51,18 +70,26 @@
                 <button class="btn-sm" onclick="filterHist(365)">1Y</button>
                 <button class="btn-sm" onclick="filterHist(0)">2Y (ALL)</button>
             </div>
-            <h3 style="margin:0 0 10px 0; font-size:0.8rem">Historical Hashrate</h3>
+            <h3 style="margin:0 0 10px 0; font-size:0.8rem">Historical Hashrate (PH/s)</h3>
             <canvas id="histChart"></canvas>
         </div>
         <div class="chart-box">
-            <h3 style="margin:0 0 10px 0; font-size:0.8rem">Live 24H Performance</h3>
+            <h3 style="margin:0 0 10px 0; font-size:0.8rem">Live 24H Trend</h3>
             <canvas id="liveChart"></canvas>
         </div>
     </div>
 
-    <h3 style="font-size:0.8rem; margin-bottom:10px">Active Miner Details</h3>
+    <h3 style="font-size:0.8rem; margin: 20px 0 10px 0; text-transform: uppercase;">Active Miner Status</h3>
     <table>
-        <thead><tr><th>Worker Name</th><th>5m (TH)</th><th>3h (TH)</th><th>24h (TH)</th><th>Status</th></tr></thead>
+        <thead>
+            <tr>
+                <th>Worker</th>
+                <th>5m (TH)</th>
+                <th>3h (TH)</th>
+                <th>24h (TH)</th>
+                <th>Status</th>
+            </tr>
+        </thead>
         <tbody id="worker-table"></tbody>
     </table>
 </div>
@@ -75,58 +102,87 @@
     async function init() {
         initCharts();
         
-        // 1. Instant Load from GitHub Action Cache
+        // 1. Load the history.json from the GitHub Repo
         try {
             const res = await fetch('history.json');
+            if (!res.ok) throw new Error('History file not found');
             const data = await res.json();
-            // Filter 0 values and sort chronological
+            
+            // Clean and sort data
             fullHistData = data.result.report
                 .filter(d => parseFloat(d.hashrate_avg_24hr_thsec) > 0)
                 .sort((a,b) => new Date(a.date) - new Date(b.date));
             
             filterHist(0);
-            document.getElementById('status-bar').innerText = "SYSTEM READY - 2Y HISTORY LOADED";
+            document.getElementById('status-bar').innerText = "2-Year Cache Loaded Successfully";
         } catch (e) {
-            document.getElementById('status-bar').innerText = "CACHE NOT FOUND - RUN GITHUB ACTION FIRST";
+            document.getElementById('status-bar').innerText = "History Cache Missing - Run GitHub Action";
+            console.error(e);
         }
 
-        // 2. Continuous Live Updates
+        // 2. Initial live load and set interval
         updateLive();
         setInterval(updateLive, 60000);
     }
 
     async function updateLive() {
         try {
-            const [hrRes, uRes] = await Promise.all([
+            const [hrRes, uRes, pRes, phRes] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`))
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`))
             ]);
+            
             const hr = await hrRes.json();
             const u = await uRes.json();
+            const p = await pRes.json();
+            const ph = await phRes.json();
 
-            // Card Data
+            // Card Metrics
             document.getElementById('t_hr').innerText = (parseFloat(hr.result?.total_300s || 0)/1e15).toFixed(2) + " PH/s";
             document.getElementById('t_unpaid').innerText = parseFloat(u.result?.unpaid || 0).toFixed(8) + " BTC";
             document.getElementById('t_est').innerText = parseFloat(u.result?.estimated_earn_next_block || 0).toFixed(8) + " BTC";
 
-            // Live Chart Graphing
+            // Top Bar - Global Pool Stats
+            document.getElementById('p-hr-global').innerText = (parseFloat(ph.result?.pool_300s || 0)/1e18).toFixed(2) + " EH/s";
+            
+            // Top Bar - Block & Finder
+            const block = p.result?.blocks[0] || {};
+            document.getElementById('p-height').innerText = "#" + (block.height || "...");
+            document.getElementById('p-finder').innerText = block.username ? (block.username.substring(0,8) + (block.workername ? "."+block.workername : "")) : "Unknown";
+
+            // Top Bar - Time Fix (Adding 'Z' for UTC parsing)
+            if (block.ts) {
+                const blockDate = new Date(block.ts + "Z");
+                const diff = Math.floor((new Date() - blockDate) / 1000);
+                const timeStr = diff < 60 ? diff + "s ago" : diff < 3600 ? Math.floor(diff/60) + "m ago" : Math.floor(diff/3600) + "h ago";
+                document.getElementById('p-time').innerText = timeStr;
+            }
+
+            // Live Chart Refresh
             const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             liveChart.data.labels.push(now);
             liveChart.data.datasets[0].data.push((parseFloat(hr.result?.total_300s || 0)/1e15).toFixed(2));
             if(liveChart.data.labels.length > 60) { liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); }
             liveChart.update();
 
-            // Table
+            // Miner Table Refresh
             const ws = hr.result?.workers || {};
             document.getElementById('worker-table').innerHTML = Object.keys(ws).map(n => {
                 const s = ws[n][0];
                 const active = s.hashrate_300s > 0;
                 return `<tr><td><b>${n}</b></td><td>${(s.hashrate_300s/1e12).toFixed(2)}</td><td>${(s.hashrate_10800s/1e12).toFixed(2)}</td><td>${(s.hashrate_86400s/1e12).toFixed(2)}</td><td style="color:${active ? 'var(--ok)':'var(--dead)'}">${active?'ACTIVE':'DEAD'}</td></tr>`;
             }).join('');
-        } catch(e) { console.error("Update failed", e); }
+            
+        } catch(e) { 
+            console.error("Live update failed", e);
+            document.getElementById('status-bar').innerText = "Live Update Error";
+        }
     }
 
     function filterHist(days) {
+        if (fullHistData.length === 0) return;
         const filtered = days === 0 ? fullHistData : fullHistData.slice(-days);
         histChart.data.labels = filtered.map(d => d.date);
         histChart.data.datasets[0].data = filtered.map(d => (parseFloat(d.hashrate_avg_24hr_thsec)/1000).toFixed(2));
@@ -134,14 +190,17 @@
     }
 
     function initCharts() {
-        histChart = new Chart(document.getElementById('histChart'), {
+        const histCtx = document.getElementById('histChart').getContext('2d');
+        histChart = new Chart(histCtx, {
             type: 'line',
             data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(88,166,255,0.05)', tension: 0.2 }] },
             options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' } }, x: { grid: { display: false } } } }
         });
-        liveChart = new Chart(document.getElementById('liveChart'), {
+
+        const liveCtx = document.getElementById('liveChart').getContext('2d');
+        liveChart = new Chart(liveCtx, {
             type: 'line',
-            data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#ff7b72', borderWidth: 2, pointRadius: 2, tension: 0.4 }] },
+            data: { labels: [], datasets: [{ label: 'Live PH/s', data: [], borderColor: '#ff7b72', borderWidth: 2, pointRadius: 2, tension: 0.4 }] },
             options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' } }, x: { grid: { display: false } } } }
         });
     }
