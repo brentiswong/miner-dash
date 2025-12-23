@@ -10,25 +10,31 @@
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; }
         .container { max-width: 1200px; margin: auto; }
         #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        
         .pool-status { background: #1c2128; border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; flex-wrap: wrap; gap: 10px; }
         .stat-item { display: flex; align-items: center; gap: 6px; }
         .pool-label { color: #8b949e; text-transform: uppercase; font-size: 0.65rem; font-weight: 700; }
+        
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 20px; }
         .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; }
         .label { font-size: 0.65rem; color: #8b949e; text-transform: uppercase; font-weight: 700; }
         .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; font-family: monospace; }
         .sub-value { font-size: 0.8rem; margin-top: 4px; opacity: 0.8; }
+        
         .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
         @media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
         .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 320px; position: relative; }
+        
         .controls { position: absolute; top: 10px; right: 15px; z-index: 10; display: flex; gap: 5px; }
         .btn-sm { background: #30363d; color: white; border: none; padding: 4px 8px; border-radius: 3px; font-size: 0.65rem; cursor: pointer; }
         .btn-sm.active { background: var(--accent); }
+        
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 25px; }
         table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; }
         th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; cursor: pointer; }
         td { padding: 12px; border-bottom: 1px solid var(--border); }
         h3 { font-size: 0.85rem; color: var(--accent); padding: 15px; margin: 0; background: #1c2128; border-bottom: 1px solid var(--border); text-transform: uppercase; }
+        
         input { width: 320px; padding: 12px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; max-width: 90%; }
         button#login-btn { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; }
     </style>
@@ -46,10 +52,21 @@
 
 <div class="container">
     <div class="pool-status">
-        <div class="stat-item"><span class="pool-label">Pool HR:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
-        <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
-        <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
-        <div id="p-time" style="color:#8b949e; font-weight:bold;">Loading...</div>
+        <div class="stat-item">
+            <span class="pool-label">Latest:</span> 
+            <a id="p-link" href="#" target="_blank" style="color:var(--accent); text-decoration:none;">
+                <span id="p-height">#...</span>
+            </a>
+        </div>
+        <div class="stat-item">
+            <span class="pool-label">Finder:</span> 
+            <span id="p-finder" style="color:var(--ok)">...</span>
+        </div>
+        <div class="stat-item">
+            <span class="pool-label">Value:</span> 
+            <span id="p-value" style="color:white">...</span>
+        </div>
+        <div id="p-time" style="color:#8b949e; font-weight:bold; background: #30363d; padding: 2px 8px; border-radius: 4px;">Loading...</div>
     </div>
 
     <div class="grid">
@@ -89,18 +106,33 @@
     </div>
 
     <div class="table-container">
-        <h3>Miner Status</h3>
+        <h3>Miner Status (5m / 3h / 24h)</h3>
         <table>
             <thead>
                 <tr>
                     <th onclick="setSort('name')">Name ↕</th>
-                    <th onclick="setSort('h5')">5m (TH/s) ↕</th>
-                    <th onclick="setSort('h3')">3h (TH/s) ↕</th>
-                    <th onclick="setSort('h24')">24h (TH/s) ↕</th>
+                    <th onclick="setSort('h5')">5m (TH) ↕</th>
+                    <th onclick="setSort('h3')">3h (TH) ↕</th>
+                    <th onclick="setSort('h24')">24h (TH) ↕</th>
                     <th onclick="setSort('status')">Status ↕</th>
                 </tr>
             </thead>
             <tbody id="worker-table"></tbody>
+        </table>
+    </div>
+
+    <div class="table-container">
+        <h3>Pool Recent Block Earnings (Last 10)</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Height</th>
+                    <th>Time</th>
+                    <th>Finder</th>
+                    <th>Reward + Fees</th>
+                </tr>
+            </thead>
+            <tbody id="block-table"></tbody>
         </table>
     </div>
 </div>
@@ -126,33 +158,22 @@
 
     function renderWorkers() {
         const sorted = [...lastWorkers].sort((a,b) => {
-            let valA = a[currentSort.key];
-            let valB = b[currentSort.key];
-            if (typeof valA === 'string') {
-                return currentSort.asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
-            }
+            let valA = a[currentSort.key]; let valB = b[currentSort.key];
+            if (typeof valA === 'string') return currentSort.asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
             return currentSort.asc ? valA - valB : valB - valA;
         });
-        
         document.getElementById('worker-table').innerHTML = sorted.map(m => `
-            <tr>
-                <td><b>${m.name}</b></td>
-                <td>${m.h5.toFixed(2)}</td>
-                <td>${m.h3.toFixed(2)}</td>
-                <td>${m.h24.toFixed(2)}</td>
-                <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td>
-            </tr>`).join('');
+            <tr><td><b>${m.name}</b></td><td>${m.h5.toFixed(2)}</td><td>${m.h3.toFixed(2)}</td><td>${m.h24.toFixed(2)}</td>
+            <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td></tr>`).join('');
     }
 
     async function loadHistoryCache() {
         try {
             const res = await fetch('history.json');
             const data = await res.json();
-            fullHistData = (data.result?.report || [])
-                .filter(d => parseFloat(d.hashrate_avg_24hr_thsec) > 0)
-                .sort((a,b) => new Date(a.date) - new Date(b.date));
+            fullHistData = (data.result?.report || []).filter(d => parseFloat(d.hashrate_avg_24hr_thsec) > 0).sort((a,b) => new Date(a.date) - new Date(b.date));
             filterHist(0);
-        } catch(e) { console.error("History Cache Load Failed", e); }
+        } catch(e) { console.warn("Cache skip"); }
     }
 
     function filterHist(days) {
@@ -163,138 +184,6 @@
         histChart.update();
     }
 
-    async function update() {
-        if (!WALLET) return;
-        document.getElementById('auth-overlay').style.display = 'none';
-
-        try {
-            const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
-            const price = parseFloat((await priceRes.json()).data.amount);
-
-            const [hrRes, uRes, poolRes, pHRRes] = await Promise.all([
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`))
-            ]);
-
-            const hrData = await hrRes.json();
-            const uData = await uRes.json();
-            const pData = await poolRes.json();
-            const pHRData = await pHRRes.json();
-
-            const u = uData.result || {};
-            
-            // Block Info
-            const blocks = pData.result?.blocks || [];
-            if (blocks.length > 0) {
-                const b = blocks[0];
-                document.getElementById('p-height').innerText = "#" + (b.height || "...");
-                document.getElementById('p-finder').innerText = b.username ? b.username.substring(0,8) : "Pool";
-                
-                if (b.ts) {
-                    const baseTs = b.ts.split('.')[0].replace('T', ' '); 
-                    const blockTime = new Date(baseTs + " UTC").getTime();
-                    const diff = Math.floor((Date.now() - blockTime) / 1000);
-                    if (diff < 0 || isNaN(diff)) document.getElementById('p-time').innerText = "Just now";
-                    else if (diff < 3600) document.getElementById('p-time').innerText = Math.floor(diff/60) + "m ago";
-                    else document.getElementById('p-time').innerText = Math.floor(diff/3600) + "h ago";
-                }
-            }
-
-            document.getElementById('p-hr').innerText = (parseFloat(pHRData.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
-            
-            // Workers Path Fix
-            let t5=0, t3=0, t24=0, active=0;
-            const ws = hrData.result?.workers || hrData.workers || {};
-            
-            lastWorkers = Object.keys(ws).map(n => {
-                const workerObj = ws[n];
-                const s = Array.isArray(workerObj) ? workerObj[0] : workerObj;
-                const h5 = parseFloat(s.hashrate_300s || 0);
-                const h3 = parseFloat(s.hashrate_10800s || 0);
-                const h24 = parseFloat(s.hashrate_86400s || 0);
-                
-                t5 += h5; t3 += h3; t24 += h24;
-                if(h5 > 0) active++;
-
-                return { 
-                    name: n, 
-                    h5: h5/1e12, 
-                    h3: h3/1e12, 
-                    h24: h24/1e12, 
-                    status: h5 > 0 ? 'ACTIVE' : 'INACTIVE' 
-                };
-            });
-
-            renderWorkers();
-            
-            // Card Updates
-            document.getElementById('t_hr').innerText = (t5/1e15).toFixed(2) + " PH/s";
-            document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
-            
-            const unpaid = parseFloat(u.unpaid||0);
-            document.getElementById('t_unpaid').innerText = unpaid.toFixed(8);
-            document.getElementById('t_usd').innerText = "$" + (unpaid * price).toFixed(2);
-            document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block||0).toFixed(8);
-            document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides||0)/1e9).toFixed(2) + "G";
-
-            // Live Chart
-            const timeStr = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-            liveChart.data.labels.push(timeStr);
-            liveChart.data.datasets[0].data.push((t5/1e15).toFixed(2));
-            liveChart.data.datasets[1].data.push(active);
-            if(liveChart.data.labels.length > 100) { 
-                liveChart.data.labels.shift(); 
-                liveChart.data.datasets[0].data.shift(); 
-                liveChart.data.datasets[1].data.shift(); 
-            }
-            liveChart.update();
-            localStorage.setItem('live_cache', JSON.stringify({
-                l: liveChart.data.labels, 
-                h: liveChart.data.datasets[0].data, 
-                w: liveChart.data.datasets[1].data
-            }));
-
-        } catch (e) { console.error("Sync Error", e); }
-    }
-
-    async function init() {
-        // Hist Chart Init
-        const histCtx = document.getElementById('histChart').getContext('2d');
-        histChart = new Chart(histCtx, {
-            type: 'line',
-            data: { labels: [], datasets: [{ label: 'Daily PH/s', data: [], borderColor: '#58a6ff', tension: 0.3, fill: true, backgroundColor: 'rgba(88,166,255,0.1)', pointRadius: 0 }] },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' } }, x: { grid: { display: false } } } }
-        });
-
-        // Live Chart Init with LocalStorage Persistence
-        const liveCtx = document.getElementById('liveChart').getContext('2d');
-        const cache = JSON.parse(localStorage.getItem('live_cache') || '{"l":[], "h":[], "w":[]}');
-        liveChart = new Chart(liveCtx, {
-            type: 'line',
-            data: { 
-                labels: cache.l, 
-                datasets: [
-                    { label: 'PH/s', data: cache.h, borderColor: '#58a6ff', tension: 0.2, pointRadius: 0 },
-                    { label: 'Miners', data: cache.w, borderColor: '#ff7b72', yAxisID: 'y1', pointRadius: 0, borderDash: [5,5] }
-                ] 
-            },
-            options: { 
-                responsive: true, maintainAspectRatio: false, 
-                scales: { 
-                    y: { grid: { color: '#30363d' } },
-                    y1: { position: 'right', grid: { display: false }, ticks: { precision: 0 } }
-                }
-            }
-        });
-
-        await loadHistoryCache();
-        update(); 
-        setInterval(update, 60000);
-    }
-
-    if (WALLET) init();
-</script>
-</body>
-</html>
+    function getRelativeTime(ts) {
+        if (!ts) return "...";
+        const safeTs = ts
