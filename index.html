@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NGU TECH - Ultimate Miner Dashboard</title>
+    <title>NGU TECH - Fixed Hashrate Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; }
@@ -41,13 +41,13 @@
     <div class="grid">
         <div class="card">
             <div class="label">Live Hashrate</div>
-            <div id="t_hr" class="value">...</div>
-            <div id="t_hr_24h" class="sub-value">24h Avg: ...</div>
+            <div id="t_hr" class="value">0.00 TH/s</div>
+            <div id="t_hr_24h" class="sub-value">24h Avg: 0.00 TH/s</div>
         </div>
         <div class="card">
             <div class="label">Unpaid Balance</div>
-            <div id="t_unpaid" class="value">...</div>
-            <div id="t_usd" class="sub-value" style="color: var(--ok);">Calculating...</div>
+            <div id="t_unpaid" class="value">0.00000000 BTC</div>
+            <div id="t_usd" class="sub-value" style="color: var(--ok);">$0.00 USD</div>
         </div>
         <div class="card">
             <div class="label">BTC Price</div>
@@ -72,7 +72,9 @@
     const OCEAN_API = 'https://api.ocean.xyz/v1';
     let chart;
 
+    // Fixed Scaling Logic to prevent "Infinity" errors
     function formatHashrate(hps) {
+        if (!hps || hps <= 0) return { v: "0.00", u: "TH/s" };
         if (hps >= 1e21) return { v: (hps/1e21).toFixed(2), u: "EH/s" };
         if (hps >= 1e18) return { v: (hps/1e18).toFixed(2), u: "PH/s" };
         return { v: (hps/1e12).toFixed(2), u: "TH/s" };
@@ -86,44 +88,22 @@
     function logout() { localStorage.clear(); location.reload(); }
 
     function initChart() {
-        const saved = JSON.parse(localStorage.getItem('miner_history_v5') || '{"labels":[], "livePoints":[], "avgPoints":[], "lastUnit": "TH/s"}');
+        const saved = JSON.parse(localStorage.getItem('miner_history_v6') || '{"labels":[], "livePoints":[], "avgPoints":[], "lastUnit": "TH/s"}');
         const ctx = document.getElementById('hashrateChart').getContext('2d');
         chart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: saved.labels,
                 datasets: [
-                    { 
-                        label: 'Live Hashrate', 
-                        data: saved.livePoints, 
-                        borderColor: '#58a6ff', 
-                        backgroundColor: 'rgba(88,166,255,0.1)', 
-                        fill: true, 
-                        tension: 0.3 
-                    },
-                    { 
-                        label: '24h Average Hashrate', 
-                        data: saved.avgPoints, 
-                        borderColor: 'rgba(63, 185, 80, 0.6)', 
-                        borderDash: [5, 5], 
-                        fill: false, 
-                        pointRadius: 0, 
-                        borderWidth: 2 
-                    }
+                    { label: 'Live Hashrate', data: saved.livePoints, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, tension: 0.3 },
+                    { label: '24h Average Hashrate', data: saved.avgPoints, borderColor: 'rgba(63, 185, 80, 0.6)', borderDash: [5, 5], fill: false, pointRadius: 0, borderWidth: 2 }
                 ]
             },
             options: { 
                 responsive: true, maintainAspectRatio: false,
-                plugins: { 
-                    legend: { display: true, labels: { color: '#8b949e', font: { size: 12 } } },
-                    tooltip: { mode: 'index', intersect: false }
-                },
+                plugins: { legend: { display: true, labels: { color: '#8b949e' } } },
                 scales: { 
-                    y: { 
-                        beginAtZero: true, grid: { color: '#30363d' },
-                        title: { display: true, text: 'Hashrate (' + (saved.lastUnit || 'TH/s') + ')', color: '#8b949e', font: { weight: 'bold' } },
-                        ticks: { color: '#8b949e' }
-                    },
+                    y: { beginAtZero: true, grid: { color: '#30363d' }, title: { display: true, text: 'Hashrate (' + (saved.lastUnit || 'TH/s') + ')', color: '#8b949e' }, ticks: { color: '#8b949e' } },
                     x: { ticks: { color: '#8b949e' }, grid: { display: false } }
                 }
             }
@@ -137,28 +117,28 @@
         try {
             const btcRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const btcJson = await btcRes.json();
-            const price = parseFloat(btcJson.data.amount);
+            const price = parseFloat(btcJson.data.amount) || 0;
             document.getElementById('btc_price').innerText = `$${price.toLocaleString()}`;
 
             const hrUrl = PROXY + encodeURIComponent(`${OCEAN_API}/user_hashrate_full/${WALLET}`);
             const snUrl = PROXY + encodeURIComponent(`${OCEAN_API}/statsnap/${WALLET}`);
             const [hrRes, snRes] = await Promise.all([fetch(hrUrl), fetch(snUrl)]);
+            
             const hrData = await hrRes.json();
             const snData = await snRes.json();
 
-            // BTC Decimal Calculation
             const stats = snData.result || snData;
             const btcBalance = parseFloat(stats.unpaid) || 0;
             const usdVal = btcBalance * price;
             document.getElementById('t_unpaid').innerText = `${btcBalance.toFixed(8)} BTC`;
-            document.getElementById('t_usd').innerText = `Valuation: $${usdVal.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+            document.getElementById('t_usd').innerText = `$${usdVal.toLocaleString(undefined, {minimumFractionDigits: 2})} USD`;
 
             const wObj = hrData.result?.workers || {};
             let totalLive = 0, total24h = 0;
             let workers = Object.keys(wObj).map(name => {
                 const s = wObj[name][0];
-                const liveRaw = s.hashrate_300s || 0;
-                const avgRaw = s.hashrate_86400s || 0;
+                const liveRaw = parseFloat(s.hashrate_300s) || 0;
+                const avgRaw = parseFloat(s.hashrate_86400s) || 0;
                 totalLive += liveRaw; total24h += avgRaw;
                 return { name, hLive: (liveRaw/1e12).toFixed(2), hAvg: (avgRaw/1e12).toFixed(2), online: liveRaw > 0 };
             });
@@ -168,10 +148,9 @@
             document.getElementById('t_hr').innerText = scaledLive.v + " " + scaledLive.u;
             document.getElementById('t_hr_24h').innerText = `24h Avg: ${scaledAvg.v} ${scaledAvg.u}`;
 
-            // Update Y-Axis Label
             chart.options.scales.y.title.text = 'Hashrate (' + scaledLive.u + ')';
-
             const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
             chart.data.labels.push(now);
             chart.data.datasets[0].data.push(scaledLive.v);
             chart.data.datasets[1].data.push(scaledAvg.v);
@@ -182,17 +161,14 @@
                 chart.data.datasets[1].data.shift();
             }
             chart.update();
-            localStorage.setItem('miner_history_v5', JSON.stringify({ 
-                labels: chart.data.labels, 
-                livePoints: chart.data.datasets[0].data, 
-                avgPoints: chart.data.datasets[1].data, 
-                lastUnit: scaledLive.u 
+            localStorage.setItem('miner_history_v6', JSON.stringify({ 
+                labels: chart.data.labels, livePoints: chart.data.datasets[0].data, avgPoints: chart.data.datasets[1].data, lastUnit: scaledLive.u 
             }));
 
             document.getElementById('w-body').innerHTML = workers.map(w => `
                 <tr><td><b>${w.name}</b></td><td>${w.hLive} TH/s</td><td>${w.hAvg} TH/s</td><td>${w.online?'● Active':'○ Offline'}</td></tr>
             `).join('');
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Update Error:", e); }
     }
 
     if (WALLET) { initChart(); update(); setInterval(update, 300000); }
