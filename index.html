@@ -16,18 +16,19 @@
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 20px; }
         .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; }
         .label { font-size: 0.65rem; color: #8b949e; text-transform: uppercase; font-weight: 700; }
-        .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; font-family: monospace; }
-        .sub-value { font-size: 0.8rem; margin-top: 4px; opacity: 0.8; }
+        .value { font-size: 1.4rem; font-weight: 800; color: white; margin-top: 5px; font-family: monospace; }
+        .sub-value { font-size: 0.75rem; margin-top: 4px; opacity: 0.8; }
         .chart-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 15px; margin-bottom: 20px; }
         .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 320px; position: relative; }
         .time-buttons { position: absolute; top: 10px; right: 10px; z-index: 10; display: flex; gap: 4px; }
         .t-btn { background: #0d1117; border: 1px solid var(--border); color: var(--text); padding: 3px 7px; font-size: 0.6rem; border-radius: 3px; cursor: pointer; }
         .t-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 25px; }
-        table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; }
-        th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; }
-        td { padding: 12px; border-bottom: 1px solid var(--border); }
-        h3 { font-size: 0.85rem; color: var(--accent); padding: 15px; margin: 0; background: #1c2128; border-bottom: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.8rem; }
+        th { text-align: left; padding: 10px; background: #1c2128; color: #8b949e; font-size: 0.65rem; text-transform: uppercase; }
+        td { padding: 10px; border-bottom: 1px solid var(--border); }
+        h3 { font-size: 0.8rem; color: var(--accent); padding: 12px; margin: 0; background: #1c2128; border-bottom: 1px solid var(--border); }
+        input { padding: 10px; width: 300px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -35,23 +36,23 @@
 <div id="auth-overlay">
     <div style="text-align:center">
         <h2>NGU TECH Dashboard</h2>
-        <input type="text" id="wallet-input" style="padding:10px; width:300px" placeholder="Enter BTC Address">
+        <input type="text" id="wallet-input" placeholder="Enter BTC Address">
         <button onclick="login()" style="padding:10px 20px; cursor:pointer">Sync</button>
     </div>
 </div>
 
 <div class="container">
     <div class="pool-status">
-        <div class="stat-item"><span class="pool-label">Pool Hashrate:</span> <span id="pool-hr" style="color:var(--accent)">...</span></div>
-        <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:white">...</span></div>
+        <div class="stat-item"><span class="pool-label">Pool:</span> <span id="pool-hr" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Last:</span> <span id="p-height" style="color:white">...</span></div>
         <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--ok)">...</span></div>
-        <div id="p-time" style="background:#30363d; padding:2px 8px; border-radius:4px; font-size:0.75rem">...</div>
+        <div id="p-time" style="background:#30363d; padding:2px 8px; border-radius:4px; font-size:0.7rem">...</div>
     </div>
 
     <div class="grid">
-        <div class="card"><div class="label">Current User Hashrate</div><div id="t_hr" class="value">0.00 PH/s</div></div>
+        <div class="card"><div class="label">Total Hashrate (300s)</div><div id="t_hr" class="value">0.00 PH/s</div></div>
         <div class="card"><div class="label">Unpaid Balance</div><div id="t_unpaid" class="value">0.00000000</div><div id="t_usd" class="sub-value" style="color:var(--ok)">$0.00</div></div>
-        <div class="card"><div class="label">Next Block Est.</div><div id="t_est" class="value">0.00000000</div><div id="t_shares" class="sub-value">0.00G Shares</div></div>
+        <div class="card"><div class="label">Next Block Est.</div><div id="t_est" class="value">0.00000000</div><div id="t_shares" class="sub-value">0.00G TIDES</div></div>
     </div>
 
     <div class="chart-container">
@@ -62,7 +63,7 @@
                 <button class="t-btn" data-tf="3m">3M</button>
                 <button class="t-btn active" data-tf="all">ALL</button>
             </div>
-            <div class="label" style="margin-bottom:10px">History (history.json)</div>
+            <div class="label" style="margin-bottom:10px">Historical Performance</div>
             <canvas id="hashChart"></canvas>
         </div>
         <div class="chart-box">
@@ -72,18 +73,18 @@
     </div>
 
     <div class="table-container">
-        <h3>Address Recent Earnings</h3>
+        <h3>Miner Status (Real-time)</h3>
         <table>
-            <thead><tr><th>Height</th><th>Time (UTC)</th><th>Amount (BTC)</th></tr></thead>
-            <tbody id="earnings-table"></tbody>
+            <thead><tr><th>Worker Name</th><th>5m Hashrate</th><th>Est. Next Block</th><th>Status</th></tr></thead>
+            <tbody id="worker-table"></tbody>
         </table>
     </div>
 
     <div class="table-container">
-        <h3>Miner Status</h3>
+        <h3>Monthly Earnings Report (NetUserRwd)</h3>
         <table>
-            <thead><tr><th>Worker Name</th><th>5m (TH)</th><th>3h (TH)</th><th>24h (TH)</th><th>Status</th></tr></thead>
-            <tbody id="worker-table"></tbody>
+            <thead><tr><th>Height</th><th>Time (UTC)</th><th>Net Reward (BTC)</th></tr></thead>
+            <tbody id="earnings-table"></tbody>
         </table>
     </div>
 </div>
@@ -111,13 +112,13 @@
     function initCharts() {
         hashChart = new Chart(document.getElementById('hashChart').getContext('2d'), {
             type: 'line',
-            data: { labels: [], datasets: [{ label: 'Historical PH/s', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, tension: 0.1, pointRadius: 0 }] },
+            data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, tension: 0.1, pointRadius: 0 }] },
             options: { responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { beginAtZero: true } } }
         });
 
         liveChart = new Chart(document.getElementById('liveChart').getContext('2d'), {
             type: 'line',
-            data: { labels: [], datasets: [{ label: 'Live PH/s', data: [], borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,0.1)', fill: true, tension: 0.3, pointRadius: 0 }] },
+            data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,0.1)', fill: true, tension: 0.3, pointRadius: 0 }] },
             options: { responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { beginAtZero: true } } }
         });
     }
@@ -127,23 +128,24 @@
         document.getElementById('auth-overlay').style.display = 'none';
 
         try {
-            const currentMonth = new Date().toISOString().slice(0, 7);
-            const [histRes, uRes, poolRes, bHRRes, btcRes, earnRes] = await Promise.all([
+            const [histRes, uFullRes, poolRes, bHRRes, btcRes, earnRes] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/history.json/${WALLET}`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/userinfo_full/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`)),
                 fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot"),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_blocks/${WALLET}/${currentMonth}`))
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_earnings_report/${WALLET}`))
             ]);
 
             const hist = await histRes.json();
-            const user = await uRes.json();
+            const uFull = await uFullRes.json();
             const pool = await poolRes.json();
             const poolHR = await bHRRes.json();
             const btc = await btcRes.json();
             const earns = await earnRes.json();
             const price = parseFloat(btc.data.amount);
+
+            const userFull = uFull.result.user_full;
 
             // 1. Top Bar
             document.getElementById('pool-hr').innerText = (parseFloat(poolHR.result.pool_300s)/1e18).toFixed(2) + " EH/s";
@@ -152,51 +154,61 @@
             document.getElementById('p-finder').innerText = lb.workername || "Miner";
             document.getElementById('p-time').innerText = new Date(lb.ts.split('.')[0] + 'Z').toLocaleTimeString();
 
-            // 2. Left Graph (History.json)
+            // 2. Charts
             if(hist.result) {
-                let data = hist.result;
+                let hData = hist.result;
                 const cutoff = { '1w': 7, '1m': 30, '3m': 90 }[timeframe];
                 if(cutoff) {
                     const minTs = (Date.now() / 1000) - (cutoff * 86400);
-                    data = data.filter(p => p.timestamp > minTs);
+                    hData = hData.filter(p => p.timestamp > minTs);
                 }
-                hashChart.data.labels = data.map(p => new Date(p.timestamp * 1000).toLocaleDateString());
-                hashChart.data.datasets[0].data = data.map(p => (p.hashrate / 1e15).toFixed(3));
+                hashChart.data.labels = hData.map(p => new Date(p.timestamp * 1000).toLocaleDateString());
+                hashChart.data.datasets[0].data = hData.map(p => (p.hashrate / 1e15).toFixed(3));
                 hashChart.update();
 
-                // 3. Right Graph (Live 24h Hashrate from History array)
-                const live24 = hist.result.slice(-288); // Last 24h in 5m intervals
+                const live24 = hist.result.slice(-288);
                 liveChart.data.labels = live24.map(p => new Date(p.timestamp * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
                 liveChart.data.datasets[0].data = live24.map(p => (p.hashrate / 1e15).toFixed(3));
                 liveChart.update();
             }
 
-            // 4. Stat Cards
-            document.getElementById('t_hr').innerText = (user.result.hashrate_300s / 1e15).toFixed(2) + " PH/s";
-            document.getElementById('t_unpaid').innerText = parseFloat(user.result.unpaid).toFixed(8);
-            document.getElementById('t_usd').innerText = "$" + (user.result.unpaid * price).toFixed(2);
-            document.getElementById('t_est').innerText = parseFloat(user.result.estimated_earn_next_block).toFixed(8);
-            document.getElementById('t_shares').innerText = (user.result.shares_in_tides / 1e9).toFixed(2) + "G Shares";
+            // 3. Stat Cards
+            document.getElementById('t_hr').innerText = (userFull.hashrate_300s / 1e15).toFixed(2) + " PH/s";
+            document.getElementById('t_unpaid').innerText = parseFloat(userFull.unpaid).toFixed(8);
+            document.getElementById('t_usd').innerText = "$" + (parseFloat(userFull.unpaid) * price).toFixed(2);
+            document.getElementById('t_est').innerText = parseFloat(userFull.estimated_earn_next_block).toFixed(8);
+            document.getElementById('t_shares').innerText = (userFull.shares_in_tides / 1e9).toFixed(2) + "G TIDES";
 
-            // 5. Earnings Table
+            // 4. Worker Table
+            const workersList = uFull.result.workers || [];
+            document.getElementById('worker-table').innerHTML = workersList.map(obj => {
+                const name = Object.keys(obj)[0];
+                const stats = obj[name];
+                return `
+                    <tr>
+                        <td><b>${name}</b></td>
+                        <td>${(stats.hashrate_300s/1e12).toFixed(2)} TH</td>
+                        <td style="color:var(--ok)">${parseFloat(stats.estimated_earn_next_block).toFixed(8)}</td>
+                        <td style="color:${stats.hashrate_300s > 0 ? 'var(--ok)' : 'var(--dead)'}">${stats.hashrate_300s > 0 ? 'ONLINE' : 'OFFLINE'}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            // 5. Earnings Table (Using NetUserRwd from monthly_earnings_report)
             const report = earns.result?.report || [];
-            document.getElementById('earnings-table').innerHTML = report.filter(x => x.Blockheight !== "-1").reverse().slice(0, 10).map(blk => `
-                <tr><td>#${blk.Blockheight}</td><td>${blk.TimeUTC.split('T')[1].replace('Z','')}</td><td style="color:var(--ok)">${(parseFloat(blk.NetUserRwd)/1e8).toFixed(8)}</td></tr>
-            `).join('');
-
-            // 6. Worker Table
-            const ws = user.result.workers || {};
-            document.getElementById('worker-table').innerHTML = Object.keys(ws).map(name => `
+            document.getElementById('earnings-table').innerHTML = report
+                .filter(x => x.Blockheight !== "-1")
+                .reverse()
+                .slice(0, 15)
+                .map(blk => `
                 <tr>
-                    <td><b>${name}</b></td>
-                    <td>${(ws[name].hashrate_300s/1e12).toFixed(2)} TH</td>
-                    <td>${(ws[name].hashrate_10800s/1e12).toFixed(2)} TH</td>
-                    <td>${(ws[name].hashrate_86400s/1e12).toFixed(2)} TH</td>
-                    <td style="color:var(--ok)">ONLINE</td>
+                    <td>#${blk.Blockheight}</td>
+                    <td>${blk.TimeUTC.replace('T', ' ').replace('Z','')}</td>
+                    <td style="color:var(--ok)">${(parseInt(blk.NetUserRwd) / 1e8).toFixed(8)}</td>
                 </tr>
             `).join('');
 
-        } catch (e) { console.error("Update failed", e); }
+        } catch (e) { console.error("Refresh failed:", e); }
     }
 
     if (WALLET) { initCharts(); update(); setInterval(update, 60000); }
