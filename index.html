@@ -96,7 +96,6 @@
         </table>
     </div>
 
-    <!-- Updated Earnings Table -->
     <div class="table-container">
         <h3>Last 10 Earnings (Recent Blocks You Contributed To)</h3>
         <table>
@@ -114,7 +113,7 @@
 
 <script>
     let WALLET = localStorage.getItem('ocean_wallet');
-    const PROXY = 'https://api.allorigins.win/raw?url=';
+    const PROXY = 'https://api.codetabs.com/v1/proxy?quest=';  // ← Faster & more reliable proxy
     let histChart, liveChart;
     let fullHistData = []; 
     let lastWorkers = [];
@@ -187,11 +186,10 @@
         histChart.update();
     }
 
-    // Updated: Fetch earnings from monthly_earnings_report (correct endpoint)
     async function fetchAndRenderEarnings() {
         let date = new Date();
         let allEarnings = [];
-        for(let i = 0; i < 18; i++) {  // Scan up to 18 months
+        for(let i = 0; i < 18; i++) {
             const y = date.getFullYear();
             const m = String(date.getMonth() + 1).padStart(2, '0');
             const url = `https://api.ocean.xyz/v1/monthly_earnings_report/${WALLET}/${y}-${m}`;
@@ -205,14 +203,11 @@
             date.setMonth(date.getMonth() - 1);
         }
 
-        // Filter valid earnings (Blockheight != "-1" and NetUserRwd > 0)
         const valid = allEarnings
             .filter(e => e.Blockheight !== "-1" && parseInt(e.NetUserRwd || 0) > 0);
 
-        // Sort newest first by TimeUTC
         valid.sort((a, b) => new Date(b.TimeUTC) - new Date(a.TimeUTC));
 
-        // Take last 10
         const recent = valid.slice(0, 10);
 
         const tbody = document.getElementById('earnings-table');
@@ -224,7 +219,6 @@
         tbody.innerHTML = recent.map(e => {
             const sats = parseInt(e.NetUserRwd);
             const btc = (sats / 100000000).toFixed(8);
-            // Format date: e.g., "Dec 22, 17:17"
             const dt = new Date(e.TimeUTC);
             const month = dt.toLocaleString('en-US', { month: 'short' });
             const day = dt.getUTCDate();
@@ -292,7 +286,6 @@
             liveChart.update();
             localStorage.setItem('live_v4', JSON.stringify({l: liveChart.data.labels, h: liveChart.data.datasets[0].data, w: liveChart.data.datasets[1].data}));
 
-            // Load earnings once
             if (!window.earningsLoaded) {
                 await fetchAndRenderEarnings();
                 window.earningsLoaded = true;
