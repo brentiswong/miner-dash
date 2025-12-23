@@ -2,140 +2,165 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TEST UPDATE WORKING</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NGU TECH - TIDES Diagnostic</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; }
-        .container { max-width: 1000px; margin: auto; }
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; --warn: #d29922; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
+        .container { max-width: 1200px; margin: auto; }
+        #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .login-card { background: var(--card); padding: 30px; border-radius: 12px; border: 1px solid var(--border); text-align: center; }
+        input { width: 100%; padding: 12px; margin: 15px 0; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 6px; }
+        button { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: bold; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin-bottom: 25px; }
         .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; }
-        .value { font-size: 1.8rem; font-weight: bold; color: white; }
-        .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-        table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 12px; background: #1c2128; cursor: pointer; user-select: none; }
-        th:hover { color: var(--accent); }
-        td { padding: 12px; border-bottom: 1px solid var(--border); }
-        .status { font-weight: bold; }
+        .label { font-size: 0.7rem; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
+        .value { font-size: 1.8rem; font-weight: bold; margin-top: 5px; color: white; }
+        .sub-value { font-size: 0.8rem; margin-top: 5px; opacity: 0.8; }
+        .debug-panel { background: #000; color: #0f0; padding: 15px; font-family: monospace; font-size: 0.75rem; border-radius: 8px; display: none; margin-top: 20px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; }
+        .btn-debug { background: #30363d; color: #8b949e; border: 1px solid var(--border); padding: 5px 10px; font-size: 0.7rem; margin-top: 10px; cursor: pointer; }
     </style>
 </head>
 <body>
 
+<div id="auth-overlay"><div class="login-card"><h2>Miner Access</h2><input type="text" id="wallet-input" placeholder="BTC Address"><br><button onclick="login()">Enter Dashboard</button></div></div>
+
 <div class="container">
-    <div id="error-bar" style="color:var(--err); margin-bottom:15px; font-size:0.9rem;"></div>
-
     <div class="grid">
-        <div class="card"><div>Total Hashrate</div><div class="value" id="t_hr">Loading...</div></div>
-        <div class="card"><div>Unpaid Balance</div><div class="value" id="t_unpaid">Loading...</div></div>
-        <div class="card"><div>Est. Next Payout</div><div class="value" id="t_est">Loading...</div></div>
+        <div class="card">
+            <div class="label">Miner Hashrate</div>
+            <div id="t_hr" class="value">--</div>
+            <div id="t_hr_sub" class="sub-value" style="color:var(--accent)">Awaiting Data...</div>
+        </div>
+        <div class="card">
+            <div class="label">TIDES Window (Blocks)</div>
+            <div id="t_blocks" class="value">--</div>
+            <div id="t_block_sub" class="sub-value">Current eligibility window</div>
+        </div>
+        <div class="card">
+            <div class="label">Total Pool Power</div>
+            <div id="t_pool_hr" class="value">--</div>
+            <div id="t_luck" class="sub-value">Luck: --</div>
+        </div>
+        <div class="card">
+            <div class="label">Unpaid Balance</div>
+            <div id="t_unpaid" class="value">--</div>
+            <div id="t_usd" class="sub-value" style="color:var(--ok)">$0.00 USD</div>
+        </div>
     </div>
 
-    <div class="table-container">
-        <table>
-            <thead>
-                <tr>
-                    <th onclick="doSort('name')">Worker <span id="s0">↕</span></th>
-                    <th onclick="doSort('h300')">5m <span id="s1">↕</span></th>
-                    <th onclick="doSort('h10800')">3h <span id="s2">↕</span></th>
-                    <th onclick="doSort('online')">Status <span id="s3">↕</span></th>
-                </tr>
-            </thead>
-            <tbody id="w-body">
-                <tr><td colspan="4" style="text-align:center; padding:40px;">Connecting to Ocean...</td></tr>
-            </tbody>
-        </table>
+    <div style="background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px;">
+        <canvas id="hashrateChart" style="height:300px;"></canvas>
     </div>
+
+    <button class="btn-debug" onclick="toggleDebug()">[ DEBUG: VIEW RAW API DATA ]</button>
+    <div id="debug-log" class="debug-panel"></div>
 </div>
 
 <script>
-    // 1. GET WALLET (Injected by Netlify)
-    const WALLET = window.WALLET_ADDRESS;
-    
-    // 2. PUBLIC PROXY (This is the FIX: It bypasses Netlify redirects entirely)
-    const PROXY_URL = 'https://api.allorigins.win/raw?url=';
+    let WALLET = localStorage.getItem('ocean_wallet');
+    const PROXY = 'https://api.allorigins.win/raw?url=';
     const OCEAN_API = 'https://api.ocean.xyz/v1';
+    let chart;
 
-    let workers = [];
-    let sortKey = 'h300';
-    let sortAsc = false;
+    function safeNum(val) { 
+        if (!val) return 0;
+        let n = parseFloat(val);
+        return isFinite(n) ? n : 0;
+    }
+
+    function formatHash(hps) {
+        hps = safeNum(hps);
+        if (hps <= 0) return { v: "0.00", u: "TH/s" };
+        if (hps >= 1e18) return { v: (hps/1e18).toFixed(2), u: "EH/s" };
+        if (hps >= 1e15) return { v: (hps/1e15).toFixed(2), u: "PH/s" };
+        if (hps >= 1e12) return { v: (hps/1e12).toFixed(2), u: "TH/s" };
+        return { v: (hps/1e9).toFixed(2), u: "GH/s" };
+    }
+
+    function login() { const v = document.getElementById('wallet-input').value.trim(); if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } }
+    function toggleDebug() { const d = document.getElementById('debug-log'); d.style.display = d.style.display === 'block' ? 'none' : 'block'; }
+    function logDebug(msg) { document.getElementById('debug-log').innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}\n\n`; }
 
     async function update() {
-        if (!WALLET) {
-            document.getElementById('error-bar').innerText = "Error: Wallet not injected via Netlify Snippets.";
-            return;
-        }
-
+        if (!WALLET) return;
+        document.getElementById('auth-overlay').style.display = 'none';
+        
         try {
-            // Encode the URLs to pass them through the AllOrigins proxy
-            const hrUrl = PROXY_URL + encodeURIComponent(`${OCEAN_API}/user_hashrate_full/${WALLET}`);
-            const snUrl = PROXY_URL + encodeURIComponent(`${OCEAN_API}/statsnap/${WALLET}`);
+            // 1. Fetch Price
+            const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
+            const price = safeNum((await priceRes.json())?.data?.amount);
 
-            const [hrRes, snRes] = await Promise.all([ fetch(hrUrl), fetch(snUrl) ]);
-            
-            const hrData = await hrRes.json();
-            const snData = await snRes.json();
+            // 2. Fetch API Data
+            const [hrRaw, poolRaw, userRaw] = await Promise.all([
+                fetch(PROXY + encodeURIComponent(`${OCEAN_API}/user_hashrate_full/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`${OCEAN_API}/statsnap`)),
+                fetch(PROXY + encodeURIComponent(`${OCEAN_API}/statsnap/${WALLET}`))
+            ]);
 
-            // UPDATE STATS
-            const stats = snData.result || snData;
-            document.getElementById('t_unpaid').innerText = (stats.unpaid || 0).toLocaleString() + ' sats';
-            document.getElementById('t_est').innerText = (stats.estimated_payout_next_block || 0).toLocaleString() + ' sats';
+            const hrData = await hrRaw.json();
+            const poolData = await poolRaw.json();
+            const userData = await userRaw.json();
 
-            // PROCESS WORKERS
-            const wObj = hrData.result?.workers || {};
-            let totalHr = 0;
-            workers = Object.keys(wObj).map(name => {
-                const s = wObj[name][0];
-                const h5m = (s.hashrate_300s || 0) / 1e12; // Convert to TH/s
-                totalHr += h5m;
-                return {
-                    name: name,
-                    h300: h5m,
-                    h10800: (s.hashrate_10800s || 0) / 1e12,
-                    online: h5m > 0
-                };
+            // Log raw data for user to see
+            logDebug(`POOL STATS: ${JSON.stringify(poolData)}`);
+            logDebug(`USER STATS: ${JSON.stringify(userData)}`);
+
+            // 3. Process Pool Stats
+            const p = poolData.result || poolData;
+            const windowBlocks = p.pool_blocks_found_window || p.blocks_found || 0;
+            const poolH = formatHash(p.hashrate_3600s);
+            const luck = safeNum(p.luck) * 100;
+
+            document.getElementById('t_blocks').innerText = windowBlocks;
+            document.getElementById('t_pool_hr').innerText = `${poolH.v} ${poolH.u}`;
+            document.getElementById('t_luck').innerText = `Luck: ${luck.toFixed(1)}%`;
+            document.getElementById('t_luck').style.color = luck >= 100 ? 'var(--ok)' : 'var(--warn)';
+
+            // 4. Process User Stats
+            const u = userData.result || userData;
+            const unpaid = safeNum(u.unpaid);
+            document.getElementById('t_unpaid').innerText = unpaid.toFixed(8) + " BTC";
+            document.getElementById('t_usd').innerText = `$${(unpaid * price).toLocaleString(undefined, {minimumFractionDigits:2})} USD`;
+
+            // 5. Process Miner Hashrate (User Hashrate Full)
+            const workers = hrData.result?.workers || hrData.workers || {};
+            let totalH = 0;
+            Object.values(workers).forEach(w => {
+                const stats = Array.isArray(w) ? w[0] : w;
+                totalH += safeNum(stats.hashrate_300s);
             });
 
-            document.getElementById('t_hr').innerText = totalHr.toFixed(2) + ' TH/s';
-            document.getElementById('error-bar').innerText = ""; 
-            render();
-        } catch (e) {
+            const mH = formatHash(totalH);
+            document.getElementById('t_hr').innerText = `${mH.v} ${mH.u}`;
+            document.getElementById('t_hr_sub').innerText = `Shares in log: ${p.share_log_window || '---'}`;
+
+            // 6. Charting
+            const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            chart.data.labels.push(now);
+            chart.data.datasets[0].data.push(mH.v);
+            if (chart.data.labels.length > 50) { chart.data.labels.shift(); chart.data.datasets[0].data.shift(); }
+            chart.update();
+
+        } catch (e) { 
+            logDebug(`ERROR: ${e.message}`);
             console.error(e);
-            document.getElementById('error-bar').innerText = "Connection lost. Retrying in 5 minutes...";
         }
     }
 
-    function doSort(key) {
-        if (sortKey === key) sortAsc = !sortAsc;
-        else { sortKey = key; sortAsc = false; }
-        render();
+    function init() {
+        const ctx = document.getElementById('hashrateChart').getContext('2d');
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Live Hashrate', data: [], borderColor: '#58a6ff', tension: 0.3, fill: true, backgroundColor: 'rgba(88,166,255,0.1)' }] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' } }, x: { grid: { display: false } } } }
+        });
+        update();
+        setInterval(update, 60000);
     }
 
-    function render() {
-        const keys = ['name', 'h300', 'h10800', 'online'];
-        keys.forEach((k, i) => {
-            const el = document.getElementById('s' + i);
-            if (el) el.innerText = (k === sortKey) ? (sortAsc ? '↑' : '↓') : '↕';
-        });
-
-        workers.sort((a, b) => {
-            let vA = a[sortKey], vB = b[sortKey];
-            if (typeof vA === 'string') return sortAsc ? vA.localeCompare(vB) : vB.localeCompare(vA);
-            return sortAsc ? vA - vB : vB - vA;
-        });
-
-        document.getElementById('w-body').innerHTML = workers.map(w => `
-            <tr>
-                <td><b>${w.name}</b></td>
-                <td>${w.h300.toFixed(2)} TH/s</td>
-                <td>${w.h10800.toFixed(2)} TH/s</td>
-                <td><span class="status" style="color:${w.online ? 'var(--ok)' : 'var(--err)'}">${w.online ? '● Online' : '○ Offline'}</span></td>
-            </tr>
-        `).join('');
-    }
-
-    update();
-    setInterval(update, 300000); 
+    if (WALLET) init();
 </script>
 </body>
 </html>
-
