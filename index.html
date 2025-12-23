@@ -1,11 +1,106 @@
-const WALLET = "bc1q76zgkz5ussy2hl54vdz7nv0q96kta82ckdu7ys";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NGU TECH - Miner Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --dead: #f85149; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; line-height: 1.5; }
+        .container { max-width: 1200px; margin: auto; }
+        
+        /* Top Bar Layout */
+        .pool-status { background: #1c2128; border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; flex-wrap: wrap; gap: 10px; }
+        .stat-item { display: flex; align-items: center; gap: 6px; }
+        .pool-label { color: #8b949e; text-transform: uppercase; font-size: 0.65rem; font-weight: 700; }
+        
+        /* Dashboard Grid */
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; font-family: 'SF Mono', monospace; }
+        
+        /* Charts */
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        @media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
+        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 350px; position: relative; }
+        
+        /* Worker Table */
+        table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+        th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; }
+        td { padding: 12px; border-bottom: 1px solid var(--border); }
+        
+        #status-bar { font-size: 0.7rem; color: var(--accent); margin-bottom: 10px; font-weight: bold; background: #1c2128; padding: 5px 10px; border-radius: 4px; display: inline-block; }
+        .controls { position: absolute; top: 10px; right: 15px; z-index: 10; display: flex; gap: 5px; }
+        .btn-sm { background: #30363d; color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 0.65rem; cursor: pointer; transition: 0.2s; }
+        .btn-sm:hover { background: var(--accent); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="status-bar">INITIALIZING SYSTEM...</div>
+    
+    <div class="pool-status">
+        <div class="stat-item"><span class="pool-label">Pool HR:</span> <span id="p-hr-global" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
+        <div id="p-time" style="color:#8b949e">Syncing...</div>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <div class="pool-label">User Hashrate (5M)</div>
+            <div id="t_hr" class="value">...</div>
+        </div>
+        <div class="card">
+            <div class="pool-label">Est Next Block</div>
+            <div id="t_est" class="value" style="color:var(--accent)">...</div>
+        </div>
+        <div class="card">
+            <div class="pool-label">Unpaid Balance</div>
+            <div id="t_unpaid" class="value" style="color:var(--ok)">...</div>
+        </div>
+    </div>
+
+    <div class="chart-grid">
+        <div class="chart-box">
+            <div class="controls">
+                <button class="btn-sm" onclick="filterHist(30)">1M</button>
+                <button class="btn-sm" onclick="filterHist(365)">1Y</button>
+                <button class="btn-sm" onclick="filterHist(0)">ALL</button>
+            </div>
+            <h3 style="margin:0 0 10px 0; font-size:0.8rem">Historical Hashrate (PH/s)</h3>
+            <canvas id="histChart"></canvas>
+        </div>
+        <div class="chart-box">
+            <h3 style="margin:0 0 10px 0; font-size:0.8rem">Live 24H Activity</h3>
+            <canvas id="liveChart"></canvas>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Worker Name</th>
+                <th>5m (TH)</th>
+                <th>3h (TH)</th>
+                <th>24h (TH)</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody id="worker-table"></tbody>
+    </table>
+</div>
+
+<script>
+    const WALLET = "bc1q76zgkz5ussy2hl54vdz7nv0q96kta82ckdu7ys";
     const PROXY = 'https://api.allorigins.win/raw?url=';
     let histChart, liveChart, fullHistData = [];
 
-    // Safety Helper: Updates text ONLY if the element exists and the data is valid
     function setText(id, text) {
         const el = document.getElementById(id);
-        if (el && text !== undefined && text !== null) el.innerText = text;
+        if (el) el.innerText = text;
     }
 
     async function init() {
@@ -13,11 +108,13 @@ const WALLET = "bc1q76zgkz5ussy2hl54vdz7nv0q96kta82ckdu7ys";
         try {
             const res = await fetch('history.json');
             const data = await res.json();
-            fullHistData = data.result.report.filter(d => parseFloat(d.hashrate_avg_24hr_thsec) > 0).sort((a,b) => new Date(a.date) - new Date(b.date));
+            fullHistData = data.result.report
+                .filter(d => parseFloat(d.hashrate_avg_24hr_thsec) > 0)
+                .sort((a,b) => new Date(a.date) - new Date(b.date));
             filterHist(0);
-            setText('status-bar', "HISTORY CACHE LOADED");
+            setText('status-bar', "SYSTEM READY - CACHE LOADED");
         } catch (e) { 
-            setText('status-bar', "WAITING FOR LIVE DATA..."); 
+            setText('status-bar', "SYSTEM READY - NO CACHE FOUND"); 
         }
         updateLive();
         setInterval(updateLive, 60000);
@@ -25,67 +122,108 @@ const WALLET = "bc1q76zgkz5ussy2hl54vdz7nv0q96kta82ckdu7ys";
 
     async function updateLive() {
         try {
-            // Fetch everything independently so one error doesn't kill the whole page
-            const fetchAPI = async (url) => {
-                try {
-                    const r = await fetch(PROXY + encodeURIComponent(url));
-                    return await r.json();
-                } catch(e) { return null; }
-            };
+            const [hrRes, uRes, pRes, phRes] = await Promise.all([
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`))
+            ]);
+            
+            const hr = await hrRes.json();
+            const u = await uRes.json();
+            const p = await pRes.json();
+            const ph = await phRes.json();
 
-            const hr = await fetchAPI(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`);
-            const u = await fetchAPI(`https://api.ocean.xyz/v1/statsnap/${WALLET}`);
-            const p = await fetchAPI(`https://api.ocean.xyz/v1/latest_block`);
-            const ph = await fetchAPI(`https://api.ocean.xyz/v1/pool_hashrate`);
+            // Core Stats
+            setText('t_hr', (parseFloat(hr.result?.total_300s || 0)/1e15).toFixed(2) + " PH/s");
+            setText('t_unpaid', parseFloat(u.result?.unpaid || 0).toFixed(8) + " BTC");
+            setText('t_est', parseFloat(u.result?.estimated_earn_next_block || 0).toFixed(8) + " BTC");
+            setText('p-hr-global', (parseFloat(ph.result?.pool_300s || 0)/1e18).toFixed(2) + " EH/s");
 
-            // Update User Stats
-            if(hr?.result) setText('t_hr', (parseFloat(hr.result.total_300s || 0)/1e15).toFixed(2) + " PH/s");
-            if(u?.result) {
-                setText('t_unpaid', parseFloat(u.result.unpaid || 0).toFixed(8) + " BTC");
-                setText('t_est', parseFloat(u.result.estimated_earn_next_block || 0).toFixed(8) + " BTC");
-            }
-            if(ph?.result) setText('p-hr-global', (parseFloat(ph.result.pool_300s || 0)/1e18).toFixed(2) + " EH/s");
+            // Block & Finder Info
+            const block = p.result?.blocks[0] || {};
+            setText('p-height', "#" + (block.height || "---"));
+            setText('p-finder', block.username ? (block.username.substring(0,8)) : "---");
 
-            // Update Block & Finder Logic
-            if(p?.result?.blocks && p.result.blocks[0]) {
-                const block = p.result.blocks[0];
-                setText('p-height', "#" + block.height);
-                setText('p-finder', block.workername || (block.username ? block.username.substring(0,8) : "Unknown"));
+            // --- THE MOBILE-FRIENDLY TIME CALCULATION ---
+            if (block.ts) {
+                // Remove microsecond noise (0.098500 -> 0.098)
+                const cleanTs = block.ts.split('.')[0]; 
+                
+                // Force UTC comparison using Z suffix
+                const blockTime = Date.parse(cleanTs + "Z");
+                const nowTime = Date.now();
+                
+                const diffSeconds = Math.floor((nowTime - blockTime) / 1000);
 
-                if (block.ts) {
-                    try {
-                        // Fix for the 6-digit microsecond issue
-                        const parts = block.ts.split('.');
-                        const cleanDate = parts[0] + "." + (parts[1] ? parts[1].substring(0, 3) : "000");
-                        
-                        const blockTime = new Date(cleanDate + "Z");
-                        const diff = Math.floor((new Date() - blockTime) / 1000);
-                        
-                        if (isNaN(diff)) throw new Error("Date NaN");
-                        
-                        const timeStr = diff < 60 ? diff + "s ago" : 
-                                        diff < 3600 ? Math.floor(diff/60) + "m ago" : 
-                                        Math.floor(diff/3600) + "h ago";
-                        setText('p-time', timeStr);
-                    } catch(timeErr) {
-                        setText('p-time', "Just now");
-                    }
+                if (diffSeconds < 0) {
+                    setText('p-time', "Just now");
+                } else {
+                    const m = Math.floor(diffSeconds / 60);
+                    const h = Math.floor(m / 60);
+                    
+                    let timeDisplay = diffSeconds + "s ago";
+                    if (m > 0) timeDisplay = m + "m ago";
+                    if (h > 0) timeDisplay = h + "h ago";
+                    
+                    setText('p-time', timeDisplay);
                 }
             }
-            
-            // Update Table
-            if(hr?.result?.workers) {
-                const ws = hr.result.workers;
-                document.getElementById('worker-table').innerHTML = Object.keys(ws).map(n => {
-                    const s = ws[n][0];
-                    return `<tr><td>${n}</td><td>${(s.hashrate_300s/1e12).toFixed(2)}</td><td>${(s.hashrate_10800s/1e12).toFixed(2)}</td><td>${(s.hashrate_86400s/1e12).toFixed(2)}</td><td style="color:${s.hashrate_300s > 0 ? 'var(--ok)':'var(--dead)'}">●</td></tr>`;
-                }).join('');
-            }
-            
-            setText('status-bar', "LIVE SYNC OK");
 
-        } catch(globalErr) { 
-            console.error("Global Sync Error:", globalErr); 
-            setText('status-bar', "SYNC ERROR - RETRYING...");
+            // Live Chart Update
+            const timeLabel = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            liveChart.data.labels.push(timeLabel);
+            liveChart.data.datasets[0].data.push((parseFloat(hr.result?.total_300s || 0)/1e15).toFixed(2));
+            if(liveChart.data.labels.length > 30) { 
+                liveChart.data.labels.shift(); 
+                liveChart.data.datasets[0].data.shift(); 
+            }
+            liveChart.update();
+
+            // Table Body
+            const ws = hr.result?.workers || {};
+            document.getElementById('worker-table').innerHTML = Object.keys(ws).map(n => {
+                const s = ws[n][0];
+                const active = s.hashrate_300s > 0;
+                return `<tr>
+                    <td><b>${n}</b></td>
+                    <td>${(s.hashrate_300s/1e12).toFixed(2)}</td>
+                    <td>${(s.hashrate_10800s/1e12).toFixed(2)}</td>
+                    <td>${(s.hashrate_86400s/1e12).toFixed(2)}</td>
+                    <td style="color:${active ? 'var(--ok)':'var(--dead)'}">${active ? '● ACTIVE' : '○ OFFLINE'}</td>
+                </tr>`;
+            }).join('');
+            
+        } catch(e) { 
+            console.error("Live sync failed", e);
         }
     }
+
+    function filterHist(days) {
+        if (!fullHistData.length) return;
+        const filtered = days === 0 ? fullHistData : fullHistData.slice(-days);
+        histChart.data.labels = filtered.map(d => d.date);
+        histChart.data.datasets[0].data = filtered.map(d => (parseFloat(d.hashrate_avg_24hr_thsec)/1000).toFixed(2));
+        histChart.update();
+    }
+
+    function initCharts() {
+        const hCtx = document.getElementById('histChart').getContext('2d');
+        histChart = new Chart(hCtx, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', fill: true, backgroundColor: 'rgba(88,166,255,0.05)', tension: 0.2, pointRadius: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' } }, x: { grid: { display: false } } } }
+        });
+
+        const lCtx = document.getElementById('liveChart').getContext('2d');
+        liveChart = new Chart(lCtx, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Live PH/s', data: [], borderColor: '#ff7b72', tension: 0.4, pointRadius: 2 }] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' } }, x: { grid: { display: false } } } }
+        });
+    }
+
+    init();
+</script>
+</body>
+</html>
