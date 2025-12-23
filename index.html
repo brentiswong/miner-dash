@@ -32,6 +32,10 @@
         button#login-btn { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .table-header-flex { display: flex; justify-content: space-between; align-items: center; background: #1c2128; padding-right: 15px; }
         .search-miner { width: 200px; padding: 6px; font-size: 0.75rem; margin: 8px 0; }
+        /* Side by Side Tables Grid */
+        .dual-table-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
+        @media (max-width: 900px) { .dual-table-grid { grid-template-columns: 1fr; } }
+        .txid-link { color: var(--accent); text-decoration: none; font-size: 0.75rem; }
     </style>
 </head>
 <body>
@@ -102,18 +106,34 @@
         </table>
     </div>
 
-    <div class="table-container">
-        <h3>Last 10 Earnings</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>Date (UTC)</th>
-                    <th>Block Height</th>
-                    <th>Earned (BTC)</th>
-                </tr>
-            </thead>
-            <tbody id="earnings-table"></tbody>
-        </table>
+    <div class="dual-table-grid">
+        <div class="table-container">
+            <h3>Last 10 Earnings</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date (UTC)</th>
+                        <th>Block Height</th>
+                        <th>Earned (BTC)</th>
+                    </tr>
+                </thead>
+                <tbody id="earnings-table"></tbody>
+            </table>
+        </div>
+
+        <div class="table-container">
+            <h3>Last 10 Payouts</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date (UTC)</th>
+                        <th>Amount (BTC)</th>
+                        <th>TXID</th>
+                    </tr>
+                </thead>
+                <tbody id="payouts-table"></tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -222,6 +242,36 @@
         }).join('');
     }
 
+    async function fetchAndRenderPayouts() {
+        let date = new Date();
+        let allPayouts = [];
+        for(let i = 0; i < 4; i++) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const url = `https://api.ocean.xyz/v1/monthly_payout_report/${WALLET}/${y}-${m}`;
+            try {
+                const res = await fetch(PROXY + encodeURIComponent(url));
+                const data = await res.json();
+                if (data.result?.report) allPayouts.push(...data.result.report);
+            } catch(e) {}
+            date.setMonth(date.getMonth() - 1);
+        }
+        allPayouts.sort((a, b) => new Date(b.TimeUTC) - new Date(a.TimeUTC));
+        const recent = allPayouts.slice(0, 10);
+        const tbody = document.getElementById('payouts-table');
+        if (recent.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center">No payouts found yet</td></tr>';
+            return;
+        }
+        tbody.innerHTML = recent.map(p => {
+            const amt = (parseInt(p.PayoutAmt) / 100000000).toFixed(8);
+            const dt = new Date(p.TimeUTC);
+            const dateStr = `${dt.toLocaleString('en-US', { month: 'short' })} ${dt.getUTCDate()}, ${dt.getUTCHours().toString().padStart(2, '0')}:${dt.getUTCMinutes().toString().padStart(2, '0')}`;
+            const shortTx = p.TXID.substring(0, 8) + '...';
+            return `<tr><td>${dateStr} UTC</td><td>${amt} BTC</td><td><a class="txid-link" href="https://mempool.space/tx/${p.TXID}" target="_blank">${shortTx}</a></td></tr>`;
+        }).join('');
+    }
+
     async function update() {
         if (!WALLET) return;
         document.getElementById('auth-overlay').style.display = 'none';
@@ -295,9 +345,9 @@
             if(liveChart.data.labels.length > 144) { liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); liveChart.data.datasets[1].data.shift(); }
             liveChart.update();
 
-            if (!window.earningsLoaded) {
-                await fetchAndRenderEarnings();
-                window.earningsLoaded = true;
+            if (!window.tablesLoaded) {
+                await Promise.all([fetchAndRenderEarnings(), fetchAndRenderPayouts()]);
+                window.tablesLoaded = true;
             }
         } catch (e) { console.error(e); }
     }
