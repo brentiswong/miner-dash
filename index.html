@@ -3,105 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NGU TECH</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>NGU TECH DEBUG</title>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --dead: #f85149; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 10px; margin: 0; }
-        .container { max-width: 1200px; margin: auto; }
-        .pool-status { background: #1c2128; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; flex-wrap: wrap; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 15px; }
-        .card { background: var(--card); border: 1px solid var(--border); padding: 15px; border-radius: 8px; }
-        .value { font-size: 1.3rem; font-weight: 800; color: white; font-family: monospace; }
-        #debug-log { font-size: 10px; color: #6e7681; font-family: monospace; margin-top: 10px; padding: 5px; border-top: 1px solid var(--border); }
+        body { background: #0d1117; color: #c9d1d9; font-family: sans-serif; padding: 20px; margin: 0; }
+        .box { background: #161b22; border: 1px solid #30363d; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
+        .row { display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid #30363d; padding-bottom: 5px; }
+        .label { color: #8b949e; font-size: 0.8rem; text-transform: uppercase; }
+        .val { font-family: monospace; font-weight: bold; color: #58a6ff; }
+        #debug { color: #f85149; font-size: 0.7rem; margin-top: 20px; white-space: pre-wrap; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div id="status-bar" style="font-size: 10px; color: var(--accent);">READY</div>
-    <div class="pool-status">
-        <div><span style="color:#8b949e">EH/s:</span> <span id="p-hr-global">...</span></div>
-        <div><span style="color:#8b949e">BLOCK:</span> <span id="p-height">...</span></div>
-        <div><span style="color:#8b949e">FINDER:</span> <span id="p-finder">...</span></div>
-        <div id="p-time" style="color:var(--accent); font-weight:bold;">WAITING</div>
+    <div class="box">
+        <div class="row"><span class="label">Status:</span> <span id="s-status" class="val">INITIALIZING</span></div>
+        <div class="row"><span class="label">Last Block:</span> <span id="s-height" class="val">---</span></div>
+        <div class="row"><span class="label">Finder:</span> <span id="s-finder" class="val">---</span></div>
+        <div class="row"><span class="label">Time Ago:</span> <span id="s-time" class="val" style="color:#3fb950">---</span></div>
     </div>
 
-    <div class="grid">
-        <div class="card"><div>USER PH/s</div><div id="t_hr" class="value">...</div></div>
-        <div class="card"><div>EST NEXT</div><div id="t_est" class="value" style="color:var(--accent)">...</div></div>
-        <div class="card"><div>UNPAID BTC</div><div id="t_unpaid" class="value" style="color:var(--ok)">...</div></div>
+    <div class="box">
+        <div class="row"><span class="label">User PH/s:</span> <span id="s-hr" class="val">---</span></div>
+        <div class="row"><span class="label">Unpaid BTC:</span> <span id="s-unpaid" class="val">---</span></div>
     </div>
 
-    <div id="debug-log">Log: Initializing...</div>
-</div>
+    <div id="debug">Log: Starting...</div>
 
 <script>
     const WALLET = "bc1q76zgkz5ussy2hl54vdz7nv0q96kta82ckdu7ys";
     const PROXY = 'https://api.allorigins.win/raw?url=';
 
-    function log(msg) {
-        document.getElementById('debug-log').innerText = "Log: " + msg;
+    function setDebug(msg) {
+        document.getElementById('debug').innerText += "\n> " + msg;
     }
 
-    async function updateLive() {
+    async function update() {
         try {
-            log("Fetching APIs...");
-            const [hrRes, uRes, pRes, phRes] = await Promise.all([
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`))
-            ]);
+            setDebug("Step 1: Fetching Ocean API...");
             
-            const hr = await hrRes.json();
-            const u = await uRes.json();
-            const p = await pRes.json();
-            const ph = await phRes.json();
-
-            log("Data received. Parsing...");
-
-            document.getElementById('t_hr').innerText = (parseFloat(hr.result?.total_300s || 0)/1e15).toFixed(2);
-            document.getElementById('t_unpaid').innerText = parseFloat(u.result?.unpaid || 0).toFixed(8);
-            document.getElementById('t_est').innerText = parseFloat(u.result?.estimated_earn_next_block || 0).toFixed(8);
-            document.getElementById('p-hr-global').innerText = (parseFloat(ph.result?.pool_300s || 0)/1e18).toFixed(2);
-
-            const block = p.result?.blocks[0] || {};
-            document.getElementById('p-height').innerText = block.height || "---";
-            document.getElementById('p-finder').innerText = block.username ? block.username.substring(0,8) : "---";
-
-            if (block.ts) {
-                log("Processing Time: " + block.ts);
-                
-                // Simple approach: Convert "2025-12-22T17:17:23..." to a Date object
-                // We replace the 'T' with a space and strip the microseconds for Safari compatibility
-                const t = block.ts.replace('T', ' ').split('.')[0];
-                const blockTime = new Date(t + " UTC").getTime();
-                const nowTime = new Date().getTime();
-                
-                const diff = Math.floor((nowTime - blockTime) / 1000);
-
-                if (isNaN(diff)) {
-                    document.getElementById('p-time').innerText = "Date Error";
-                } else if (diff < 0) {
-                    // If block is "in the future" due to clock desync, just show "Recent"
-                    document.getElementById('p-time').innerText = "Just now";
-                } else if (diff < 60) {
-                    document.getElementById('p-time').innerText = diff + "s ago";
-                } else {
-                    document.getElementById('p-time').innerText = Math.floor(diff/60) + "m ago";
-                }
-            }
+            const response = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`));
+            if (!response.ok) throw new Error("Proxy failed");
             
-            log("Sync Complete: " + new Date().toLocaleTimeString());
-        } catch(e) { 
-            log("Error: " + e.message);
-            document.getElementById('p-time').innerText = "Err";
+            const data = await response.json();
+            setDebug("Step 2: JSON parsed successfully.");
+
+            const block = data.result.blocks[0];
+            document.getElementById('s-height').innerText = "#" + block.height;
+            document.getElementById('s-finder').innerText = block.username.substring(0,10);
+            
+            setDebug("Step 3: Calculating time for " + block.ts);
+
+            // The simplest possible time math
+            const blockDate = new Date(block.ts.replace('T', ' ').split('.')[0] + " UTC");
+            const now = new Date();
+            const diff = Math.floor((now - blockDate) / 1000);
+
+            let displayTime = diff + "s ago";
+            if (diff > 60) displayTime = Math.floor(diff/60) + "m ago";
+            if (diff < 0) displayTime = "Just now";
+            
+            document.getElementById('s-time').innerText = displayTime;
+            document.getElementById('s-status').innerText = "ONLINE";
+            setDebug("Step 4: All updates complete.");
+
+            // Fetch User Stats
+            const uRes = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`));
+            const uData = await uRes.json();
+            document.getElementById('s-unpaid').innerText = uData.result.unpaid + " BTC";
+
+        } catch (e) {
+            setDebug("ERROR: " + e.message);
+            document.getElementById('s-status').innerText = "FAILED";
         }
     }
 
-    updateLive();
-    setInterval(updateLive, 30000);
+    // Run immediately
+    update();
+    // Refresh every 30 seconds
+    setInterval(update, 30000);
 </script>
 </body>
 </html>
