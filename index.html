@@ -158,7 +158,10 @@
     let fullHistData = []; 
     let lastWorkers = [];
     let currentSort = { key: 'name', asc: true };
-    let lastBlockTimestamp = 0;
+    
+    // --- New variables for Relative Timing ---
+    let blockAgeAtFetch = 0;
+    let lastFetchTime = 0;
 
     function login() { 
         const v = document.getElementById('wallet-input').value.trim(); 
@@ -186,7 +189,7 @@
     }
 
     function formatTimeAgo(secondsAgo) {
-        if (secondsAgo <= 0) return "0s ago"; // Force a starting point
+        if (secondsAgo < 0) secondsAgo = 0;
         const days = Math.floor(secondsAgo / 86400);
         const hours = Math.floor((secondsAgo % 86400) / 3600);
         const minutes = Math.floor((secondsAgo % 3600) / 60);
@@ -202,17 +205,13 @@
     }
 
     function updateTimeSince() {
-        if (lastBlockTimestamp === 0) return;
+        if (lastFetchTime === 0) return;
         
-        // Use standard Date parsing but handle clock skew
-        const now = Math.floor(Date.now() / 1000);
-        let ago = now - lastBlockTimestamp;
+        // Calculate how much time passed since the last API update
+        const secondsSinceFetch = (Date.now() / 1000) - lastFetchTime;
+        const currentTotalAge = blockAgeAtFetch + secondsSinceFetch;
         
-        // If ago is negative (local clock is behind pool clock), 
-        // we'll just show "0s ago" until the clock catches up.
-        if (ago < 0) ago = 0; 
-        
-        document.getElementById('p-time').innerText = formatTimeAgo(ago);
+        document.getElementById('p-time').innerText = formatTimeAgo(currentTotalAge);
     }
 
     async function fetchDeepHistory() {
@@ -270,8 +269,10 @@
             document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
             
             if (block.ts) { 
-                // Strict parsing to ensure UTC
-                lastBlockTimestamp = Math.floor(new Date(block.ts).getTime() / 1000); 
+                // NEW LOGIC: Record age immediately on arrival
+                const blockTime = new Date(block.ts).getTime() / 1000;
+                lastFetchTime = Date.now() / 1000;
+                blockAgeAtFetch = lastFetchTime - blockTime;
             }
             updateTimeSince();
 
@@ -285,7 +286,7 @@
             document.getElementById('t_unpaid').innerText = unpaid.toFixed(8);
             document.getElementById('t_usd').innerText = "$" + (unpaid * price).toFixed(2);
             document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block||0).toFixed(8);
-            document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tIDES||0)/1e9).toFixed(2) + "G";
+            document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides||0)/1e9).toFixed(2) + "G";
 
             let t5=0, t3=0, t24=0, active=0;
             const ws = hrData.result?.workers || hrData.workers || {};
