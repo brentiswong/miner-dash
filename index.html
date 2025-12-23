@@ -41,6 +41,7 @@
         <div class="stat-item"><span class="pool-label">Pool HR:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">TIDES Luck:</span> <span id="p-luck" style="color:var(--accent)">...</span></div>
         <div id="p-time" style="color:#8b949e">Loading...</div>
     </div>
 
@@ -258,6 +259,17 @@
                 lastBlockTimestamp = Math.floor(new Date(block.ts).getTime() / 1000);
             }
             updateTimeSince();
+
+            // Correct TIDES Luck %
+            if (block.sharelog_window && block.network_difficulty) {
+                const sharelog = parseFloat(block.sharelog_window);
+                const diff = parseFloat(block.network_difficulty);
+                const expected = diff * Math.pow(2, 32);
+                const luck = (expected / sharelog) * 100;
+                document.getElementById('p-luck').innerText = luck.toFixed(1) + "%";
+            } else {
+                document.getElementById('p-luck').innerText = "...";
+            }
 
             const unpaid = parseFloat(u.unpaid||0);
             document.getElementById('t_unpaid').innerText = unpaid.toFixed(8);
