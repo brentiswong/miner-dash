@@ -32,10 +32,14 @@
         button#login-btn { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .table-header-flex { display: flex; justify-content: space-between; align-items: center; background: #1c2128; padding-right: 15px; }
         .search-miner { width: 200px; padding: 6px; font-size: 0.75rem; margin: 8px 0; }
-        /* Side by Side Tables Grid */
         .dual-table-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
         @media (max-width: 900px) { .dual-table-grid { grid-template-columns: 1fr; } }
         .txid-link { color: var(--accent); text-decoration: none; font-size: 0.75rem; }
+        /* Settings Box Styles */
+        .settings-box { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 8px; margin-top: 20px; text-align: center; }
+        .settings-input { width: 100%; max-width: 500px; margin-bottom: 10px; }
+        .btn-update { background: #30363d; color: white; border: 1px solid var(--border); padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+        .btn-update:hover { background: var(--accent); border-color: var(--accent); }
     </style>
 </head>
 <body>
@@ -135,6 +139,13 @@
             </table>
         </div>
     </div>
+
+    <div class="settings-box">
+        <div class="label" style="margin-bottom: 10px;">Dashboard Settings</div>
+        <input type="text" id="settings-wallet-input" class="settings-input" placeholder="Update BTC Address">
+        <br>
+        <button class="btn-update" onclick="updateAddress()">Update Address</button>
+    </div>
 </div>
 
 <script>
@@ -149,6 +160,12 @@
     function login() { 
         const v = document.getElementById('wallet-input').value.trim(); 
         if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } 
+    }
+
+    // New update function for the settings box
+    function updateAddress() {
+        const v = document.getElementById('settings-wallet-input').value.trim();
+        if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); }
     }
 
     function setSort(k) {
@@ -275,6 +292,10 @@
     async function update() {
         if (!WALLET) return;
         document.getElementById('auth-overlay').style.display = 'none';
+        // Populate settings input with current wallet
+        if (!document.getElementById('settings-wallet-input').value) {
+            document.getElementById('settings-wallet-input').value = WALLET;
+        }
 
         try {
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
