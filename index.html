@@ -39,7 +39,7 @@
 </head>
 <body>
 
-<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH Dashboard</h2><input type="text" id="wallet-input" placeholder="Enter BTC Address"><br><br><button id="login-btn">Sync Dashboard</button></div></div>
+<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH Dashboard</h2><input type="text" id="wallet-input" placeholder="Enter BTC Address"><br><br><button id="login-btn" onclick="login()">Sync Dashboard</button></div></div>
 
 <div class="container">
     <div class="pool-status">
@@ -77,11 +77,11 @@
                 <button class="btn-sm" onclick="filterHist(365)">1Y</button>
                 <button class="btn-sm active" onclick="filterHist(0)">ALL</button>
             </div>
-            <h3 style="background:transparent; padding: 0">Historical PH/s</h3>
+            <h3 style="background:transparent; padding:0">Historical PH/s</h3>
             <canvas id="histChart"></canvas>
         </div>
         <div class="chart-box">
-            <h3 style="background:transparent; padding: 0">Live 24H</h3>
+            <h3 style="background:transparent; padding:0">Live 24H</h3>
             <canvas id="liveChart"></canvas>
         </div>
     </div>
@@ -152,33 +152,9 @@
     let currentSort = { key: 'name', asc: true };
     let lastBlockTimestamp = 0;
 
-    // Hide overlay immediately if address saved
-    if (WALLET) {
-        document.getElementById('auth-overlay').style.display = 'none';
-    }
-
-    // Button and Enter key
-    document.addEventListener('DOMContentLoaded', () => {
-        const loginBtn = document.getElementById('login-btn');
-        const walletInput = document.getElementById('wallet-input');
-
-        loginBtn.addEventListener('click', login);
-        loginBtn.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            login();
-        });
-
-        walletInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') login();
-        });
-    });
-
     function login() { 
         const v = document.getElementById('wallet-input').value.trim(); 
-        if(v) { 
-            localStorage.setItem('ocean_wallet', v); 
-            location.reload(); 
-        } 
+        if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } 
     }
 
     function updateWalletFooter() {
@@ -186,36 +162,158 @@
         if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); }
     }
 
-    // ... (rest of the script unchanged — setSort, renderWorkers, formatTimeAgo, updateTimeSince, fetchDeepHistory, filterHist, fetchAndRenderEarnings, fetchAndRenderPayouts, update, init)
+    function setSort(k) {
+        if (currentSort.key === k) currentSort.asc = !currentSort.asc;
+        else { currentSort.key = k; currentSort.asc = true; }
+        renderWorkers();
+    }
+
+    function renderWorkers() {
+        const query = document.getElementById('miner-search').value.toLowerCase();
+        let filtered = lastWorkers.filter(m => m.name.toLowerCase().includes(query));
+        const sorted = [...filtered].sort((a,b) => currentSort.asc ? (a[currentSort.key] > b[currentSort.key] ? 1 : -1) : (a[currentSort.key] < b[currentSort.key] ? 1 : -1));
+        document.getElementById('worker-table').innerHTML = sorted.map(m => `
+            <tr><td><b>${m.name}</b></td><td>${m.h5.toFixed(2)}</td><td>${m.h3.toFixed(2)}</td><td>${m.h24.toFixed(2)}</td>
+            <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td></tr>`).join('');
+    }
+
+    function formatTimeAgo(secondsAgo) {
+        if (secondsAgo <= 0) return "Just now";
+        const days = Math.floor(secondsAgo / 86400);
+        const hours = Math.floor((secondsAgo % 86400) / 3600);
+        const minutes = Math.floor((secondsAgo % 3600) / 60);
+        const seconds = Math.floor(secondsAgo % 60);
+
+        let parts = [];
+        if (days > 0) parts.push(`${days}d`);
+        if (hours > 0) parts.push(`${hours}h`);
+        if (minutes > 0) parts.push(`${minutes}m`);
+        if (parts.length < 2) parts.push(`${seconds}s`);
+        
+        return parts.join(' ') + ' ago';
+    }
+
+    function updateTimeSince() {
+        if (lastBlockTimestamp === 0) {
+            document.getElementById('p-time').innerText = 'Loading...';
+            return;
+        }
+        const nowUTC = Math.floor(new Date().getTime() / 1000);
+        const ago = nowUTC - lastBlockTimestamp;
+        document.getElementById('p-time').innerText = formatTimeAgo(ago);
+    }
+
+    async function fetchDeepHistory() {
+        let date = new Date();
+        const results = [];
+        for(let i=0; i<12; i++) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const url = `https://api.ocean.xyz/v1/monthly_user_report/${WALLET}/${y}-${m}`;
+            try {
+                const res = await fetch(PROXY + encodeURIComponent(url));
+                const data = await res.json();
+                if(data.result?.report) results.push(...data.result.report);
+                if(data.result?.report?.length === 0 && i > 3) break;
+            } catch(e) {}
+            date.setMonth(date.getMonth() - 1);
+        }
+        fullHistData = results.filter(d => parseFloat(d.hashrate_avg_24hr_thsec) > 0)
+                              .sort((a,b) => new Date(a.date) - new Date(b.date));
+        filterHist(0);
+    }
+
+    function filterHist(days) {
+        document.querySelectorAll('.btn-sm').forEach(b => b.classList.remove('active'));
+        const filtered = days === 0 ? fullHistData : fullHistData.slice(-days);
+        histChart.data.labels = filtered.map(d => d.date);
+        histChart.data.datasets[0].data = filtered.map(d => (parseFloat(d.hashrate_avg_24hr_thsec)/1000).toFixed(2));
+        histChart.update();
+    }
 
     async function update() {
         if (!WALLET) return;
-
+        document.getElementById('auth-overlay').style.display = 'none';
         try {
-            // ... (fetches unchanged)
+            const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
+            const price = parseFloat((await priceRes.json()).data.amount);
 
+            const [hrRes, uRes, poolRes, pHRRes, blocksRes] = await Promise.all([
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=30`))
+            ]);
+
+            const hrData = await hrRes.json();
+            const u = (await uRes.json()).result || {};
+            const pData = await poolRes.json();
+            const pHR = await pHRRes.json();
+            const blocksData = await blocksRes.json();
+
+            const block = pData.result?.blocks?.[0] || {};
+            document.getElementById('p-height').innerText = "#" + (block.height || "...");
+            document.getElementById('p-finder').innerText = block.username ? (block.username.substring(0,8) + (block.workername ? "."+block.workername : "")) : "...";
+            document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
+            
             if (block.ts) { 
                 lastBlockTimestamp = Math.floor(new Date(block.ts).getTime() / 1000); 
             }
             updateTimeSince();
 
-            // ... (rest unchanged)
+            const sharelog = parseFloat(block.sharelog_window || 0);
+            let k = 0, cum = 0;
+            const blocks = (blocksData.result?.blocks || []).sort((a, b) => b.height - a.height);
+            for (const b of blocks) { cum += parseFloat(b.accepted_shares || 0); k++; if (cum >= sharelog) break; }
+            document.getElementById('p-blocks').innerText = k;
 
+            const unpaid = parseFloat(u.unpaid||0);
+            document.getElementById('t_unpaid').innerText = unpaid.toFixed(8);
+            document.getElementById('t_usd').innerText = "$" + (unpaid * price).toFixed(2);
+            document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block||0).toFixed(8);
+            document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides||0)/1e9).toFixed(2) + "G";
+
+            let t5=0, t3=0, t24=0, active=0;
+            const ws = hrData.result?.workers || hrData.workers || {};
+            lastWorkers = Object.keys(ws).map(n => {
+                const s = Array.isArray(ws[n]) ? ws[n][0] : ws[n];
+                const h5 = parseFloat(s.hashrate_300s||0);
+                t5 += h5; t3 += parseFloat(s.hashrate_10800s||0); t24 += parseFloat(s.hashrate_86400s||0);
+                if(h5 > 0) active++;
+                return { name: n, h5: h5/1e12, h3: (s.hashrate_10800s||0)/1e12, h24: (s.hashrate_86400s||0)/1e12, status: h5 > 0 ? 'ACTIVE' : 'INACTIVE' };
+            });
+            renderWorkers();
+            document.getElementById('t_hr').innerText = (t5/1e15).toFixed(2) + " PH/s";
+            document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
+
+            const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            liveChart.data.labels.push(time);
+            liveChart.data.datasets[0].data.push((t5/1e15).toFixed(2));
+            liveChart.data.datasets[1].data.push(active);
+            if(liveChart.data.labels.length > 1440) { liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); liveChart.data.datasets[1].data.shift(); }
+            liveChart.update();
+            localStorage.setItem('live_v4', JSON.stringify({l: liveChart.data.labels, h: liveChart.data.datasets[0].data, w: liveChart.data.datasets[1].data}));
         } catch (e) { console.error(e); }
     }
 
     async function init() {
-        // ... (charts unchanged)
-
-        if (WALLET) {
-            await fetchDeepHistory();
-            update(); 
-            setInterval(update, 60000);
-            setInterval(updateTimeSince, 1000);
-        }
+        const histCtx = document.getElementById('histChart').getContext('2d');
+        histChart = new Chart(histCtx, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Daily PH/s', data: [], borderColor: '#58a6ff', tension: 0.3, fill: true, backgroundColor: 'rgba(88,166,255,0.1)' }] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' } } } }
+        });
+        const liveCtx = document.getElementById('liveChart').getContext('2d');
+        const s = JSON.parse(localStorage.getItem('live_v4') || '{"l":[], "h":[], "w":[]}');
+        liveChart = new Chart(liveCtx, {
+            type: 'line',
+            data: { labels: s.l, datasets: [{ label: 'PH/s', data: s.h, borderColor: '#58a6ff', tension: 0.2, pointRadius: 0 }, { label: 'Miners', data: s.w, borderColor: '#ff7b72', yAxisID: 'y1', pointRadius: 0, borderDash: [5,5] }] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' } }, y1: { position: 'right', grid: { display: false }, ticks: { precision: 0 } } } }
+        });
+        await fetchDeepHistory(); update(); setInterval(update, 60000); setInterval(updateTimeSince, 1000);
     }
-
-    init();
+    if (WALLET) init();
 </script>
 </body>
 </html>
