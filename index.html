@@ -3,12 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ocean Miner Dashboard - Persistent History</title>
+    <title>NGU TECH - Private Miner Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
         .container { max-width: 1200px; margin: auto; }
+        #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .login-card { background: var(--card); padding: 30px; border-radius: 12px; border: 1px solid var(--border); text-align: center; width: 90%; max-width: 400px; }
+        input { width: 100%; padding: 12px; margin: 15px 0; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 6px; box-sizing: border-box; }
+        button { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 25px; }
         .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; }
         .label { font-size: 0.9rem; color: #8b949e; text-transform: uppercase; }
@@ -17,27 +21,38 @@
         .chart-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 25px; height: 350px; }
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 15px; background: #1c2128; color: #8b949e; cursor: pointer; }
+        th { text-align: left; padding: 15px; background: #1c2128; color: #8b949e; }
         td { padding: 15px; border-bottom: 1px solid var(--border); }
+        .logout { float: right; color: var(--err); cursor: pointer; font-size: 0.8rem; margin-top: 10px; }
     </style>
 </head>
 <body>
+
+<div id="auth-overlay">
+    <div class="login-card">
+        <h2>Miner Login</h2>
+        <input type="text" id="wallet-input" placeholder="Enter Wallet Address (bc1q...)">
+        <button onclick="login()">Load Private Stats</button>
+    </div>
+</div>
+
 <div class="container">
+    <div style="overflow: auto;"><span class="logout" onclick="logout()">✕ Logout</span></div>
     <div class="grid">
         <div class="card">
-            <div class="label">Total Hashrate (5m)</div>
-            <div class="value" id="t_hr">0.00 TH/s</div>
-            <div class="sub-value" id="t_hr_3h">3h Avg: 0.00 TH/s</div>
+            <div class="label">Hashrate</div>
+            <div class="value" id="t_hr">...</div>
+            <div class="sub-value" id="t_hr_unit">...</div>
         </div>
         <div class="card">
             <div class="label">Unpaid Balance</div>
-            <div class="value" id="t_unpaid">0 sats</div>
+            <div class="value" id="t_unpaid">...</div>
             <div class="sub-value" id="t_usd">Valuation: $0.00 USD</div>
         </div>
         <div class="card">
-            <div class="label">BTC/USD Spot</div>
-            <div class="value" id="btc_price">$0.00</div>
-            <div class="sub-value">Direct Live Feed</div>
+            <div class="label">BTC Price</div>
+            <div class="value" id="btc_price">...</div>
+            <div class="sub-value">Coinbase Live</div>
         </div>
     </div>
 
@@ -46,12 +61,7 @@
     <div class="table-container">
         <table>
             <thead>
-                <tr>
-                    <th onclick="doSort('name')">Worker ↕</th>
-                    <th onclick="doSort('h300')">5m Hash ↕</th>
-                    <th onclick="doSort('h10800')">3h Hash ↕</th>
-                    <th>Status</th>
-                </tr>
+                <tr><th>Worker</th><th>5m Hash</th><th>3h Hash</th><th>Status</th></tr>
             </thead>
             <tbody id="w-body"></tbody>
         </table>
@@ -59,121 +69,112 @@
 </div>
 
 <script>
-    const WALLET = "bc1q76zgkz5ussy2hl54vdz7nv0q96kta82ckdu7ys";
+    let WALLET = localStorage.getItem('ocean_wallet');
     const PROXY = 'https://api.allorigins.win/raw?url=';
     const OCEAN_API = 'https://api.ocean.xyz/v1';
-    
     let chart;
-    let workers = [];
-    let sortKey = 'h300';
-    let sortAsc = false;
 
-    // --- PERSISTENCE LOGIC ---
-    function getHistory() {
-        const saved = localStorage.getItem('miner_history_v2');
-        return saved ? JSON.parse(saved) : { labels: [], points: [] };
+    function formatHashrate(hashesPerSecond) {
+        if (hashesPerSecond >= 1e21) return { val: (hashesPerSecond / 1e21).toFixed(2), unit: "EH/s" };
+        if (hashesPerSecond >= 1e18) return { val: (hashesPerSecond / 1e18).toFixed(2), unit: "PH/s" };
+        return { val: (hashesPerSecond / 1e12).toFixed(2), unit: "TH/s" };
     }
 
-    function saveHistory(labels, points) {
-        // Keep only last 288 points (24 hours @ 5-min intervals)
-        if (labels.length > 288) {
-            labels = labels.slice(-288);
-            points = points.slice(-288);
-        }
-        localStorage.setItem('miner_history_v2', JSON.stringify({ labels, points }));
+    function login() {
+        const input = document.getElementById('wallet-input').value.trim();
+        if (input) { localStorage.setItem('ocean_wallet', input); location.reload(); }
+    }
+
+    function logout() {
+        localStorage.removeItem('ocean_wallet');
+        localStorage.removeItem('miner_history_v2');
+        location.reload();
     }
 
     function initChart() {
-        const history = getHistory();
+        const saved = JSON.parse(localStorage.getItem('miner_history_v2') || '{"labels":[], "points":[]}');
         const ctx = document.getElementById('hashrateChart').getContext('2d');
         chart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: history.labels,
-                datasets: [{
-                    label: 'TH/s',
-                    data: history.points,
-                    borderColor: '#58a6ff',
-                    backgroundColor: 'rgba(88, 166, 255, 0.1)',
-                    fill: true,
-                    tension: 0.3
-                }]
+                labels: saved.labels,
+                datasets: [{ label: 'Hashrate', data: saved.points, borderColor: '#58a6ff', backgroundColor: 'rgba(88, 166, 255, 0.1)', fill: true, tension: 0.3 }]
             },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                plugins: { legend: { display: false } },
+                scales: { 
+                    y: { 
+                        beginAtZero: true, 
+                        grid: { color: '#30363d' },
+                        ticks: {
+                            callback: function(value) {
+                                // Dynamic unit labeling on the Axis
+                                const currentMax = Math.max(...this.chart.data.datasets[0].data);
+                                if (currentMax > 1000000) return (value / 1000000).toFixed(1) + ' EH';
+                                if (currentMax > 1000) return (value / 1000).toFixed(1) + ' PH';
+                                return value + ' TH';
+                            }
+                        }
+                    } 
+                }
+            }
         });
     }
 
     async function update() {
+        if (!WALLET) return;
+        document.getElementById('auth-overlay').style.display = 'none';
+
         try {
-            // Direct price fetch (No proxy needed for Coinbase)
             const btcRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const btcJson = await btcRes.json();
             const price = parseFloat(btcJson.data.amount);
             document.getElementById('btc_price').innerText = `$${price.toLocaleString()}`;
 
-            // Ocean Data via Proxy
             const hrUrl = PROXY + encodeURIComponent(`${OCEAN_API}/user_hashrate_full/${WALLET}`);
             const snUrl = PROXY + encodeURIComponent(`${OCEAN_API}/statsnap/${WALLET}`);
             const [hrRes, snRes] = await Promise.all([fetch(hrUrl), fetch(snUrl)]);
             const hrData = await hrRes.json();
             const snData = await snRes.json();
 
-            // Earnings Calculation
+            // Corrected Valuation (1 BTC = 100M Sats)
             const stats = snData.result || snData;
             const sats = stats.unpaid || 0;
             const usdVal = (sats / 100000000) * price;
             document.getElementById('t_unpaid').innerText = `${sats.toLocaleString()} sats`;
             document.getElementById('t_usd').innerText = `Valuation: $${usdVal.toFixed(2)} USD`;
 
-            // Hashrate Processing
             const wObj = hrData.result?.workers || {};
-            let total5m = 0, total3h = 0;
-            workers = Object.keys(wObj).map(name => {
+            let totalRaw = 0;
+            let workers = Object.keys(wObj).map(name => {
                 const s = wObj[name][0];
-                const h5 = (s.hashrate_300s || 0) / 1e12;
+                const raw = s.hashrate_300s || 0;
+                totalRaw += raw;
                 const h3 = (s.hashrate_10800s || 0) / 1e12;
-                total5m += h5; total3h += h3;
-                return { name, h300: h5, h10800: h3, online: h5 > 0 };
+                return { name, h300: (raw/1e12).toFixed(2), h10800: h3.toFixed(2), online: raw > 0 };
             });
 
-            document.getElementById('t_hr').innerText = `${total5m.toFixed(2)} TH/s`;
-            document.getElementById('t_hr_3h').innerText = `3h Avg: ${total3h.toFixed(2)} TH/s`;
+            // Auto-Scale Top Display
+            const scaled = formatHashrate(totalRaw);
+            document.getElementById('t_hr').innerText = scaled.val;
+            document.getElementById('t_hr_unit').innerText = "Current Unit: " + scaled.unit;
 
-            // Graph Update & Persistence
+            // Chart Update (Stored as TH/s for calculation, Y-axis scales display)
             const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             chart.data.labels.push(now);
-            chart.data.datasets[0].data.push(total5m.toFixed(2));
+            chart.data.datasets[0].data.push((totalRaw/1e12).toFixed(2));
+            if (chart.data.labels.length > 288) { chart.data.labels.shift(); chart.data.datasets[0].data.shift(); }
             chart.update();
-            saveHistory(chart.data.labels, chart.data.datasets[0].data);
+            localStorage.setItem('miner_history_v2', JSON.stringify({ labels: chart.data.labels, points: chart.data.datasets[0].data }));
 
-            render();
-        } catch (e) { console.error("Update failed", e); }
+            document.getElementById('w-body').innerHTML = workers.map(w => `
+                <tr><td><b>${w.name}</b></td><td>${w.h300} TH/s</td><td>${w.h10800} TH/s</td><td>${w.online?'●':'○'}</td></tr>
+            `).join('');
+        } catch (e) { console.error(e); }
     }
 
-    function doSort(key) {
-        if (sortKey === key) sortAsc = !sortAsc;
-        else { sortKey = key; sortAsc = false; }
-        render();
-    }
-
-    function render() {
-        workers.sort((a, b) => {
-            let vA = a[sortKey], vB = b[sortKey];
-            return sortAsc ? (vA > vB ? 1 : -1) : (vA < vB ? 1 : -1);
-        });
-        document.getElementById('w-body').innerHTML = workers.map(w => `
-            <tr>
-                <td><b>${w.name}</b></td>
-                <td>${w.h300.toFixed(2)}</td>
-                <td>${w.h10800.toFixed(2)}</td>
-                <td><span style="color:${w.online ? 'var(--ok)':'var(--err)'}">${w.online?'● Online':'○ Offline'}</span></td>
-            </tr>
-        `).join('');
-    }
-
-    initChart();
-    update();
-    setInterval(update, 300000);
+    if (WALLET) { initChart(); update(); setInterval(update, 300000); }
 </script>
 </body>
-</html>
