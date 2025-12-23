@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>NGU TECH - Reward Tracker</title>
+    <title>NGU TECH - Miner & Rewards</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --dead: #f85149; }
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --worker-line: #ff7b72; --border: #30363d; --ok: #3fb950; --dead: #f85149; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
         .container { max-width: 1200px; margin: auto; }
         #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
@@ -15,7 +15,7 @@
         .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; }
         .sub-value { font-size: 0.8rem; margin-top: 4px; opacity: 0.8; }
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 25px; }
-        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 260px; margin-bottom: 20px; }
+        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 320px; margin-bottom: 20px; }
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; cursor: pointer; }
         td { padding: 12px; border-bottom: 1px solid var(--border); font-family: monospace; font-size: 0.85rem; }
@@ -47,15 +47,15 @@
         </div>
     </div>
 
-    <div class="chart-box"><canvas id="hashrateChart"></canvas></div>
+    <div class="chart-box"><canvas id="multiChart"></canvas></div>
 
     <div class="table-container">
-        <h3>Monthly Earnings Report (Base Endpoint)</h3>
+        <h3>Monthly Earnings Report</h3>
         <table>
             <thead>
                 <tr><th>Block Height</th><th>Net Reward (Sats)</th><th>Fee Reward (Sats)</th><th>Date (UTC)</th></tr>
             </thead>
-            <tbody id="reward-table"><tr><td colspan="4">Fetching latest rewards...</td></tr></tbody>
+            <tbody id="reward-table"><tr><td colspan="4">Loading data structure...</td></tr></tbody>
         </table>
     </div>
 
@@ -112,7 +112,6 @@
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const price = parseFloat((await priceRes.json()).data.amount);
 
-            // Simplified URL as per user instruction
             const earnUrl = `https://api.ocean.xyz/v1/monthly_earnings_report/${WALLET}`;
 
             const [hrRes, uRes, earnRes] = await Promise.all([
@@ -123,21 +122,20 @@
 
             const hrData = await hrRes.json();
             const u = (await uRes.json()).result || {};
+            const earnData = await earnRes.json();
             
-            // Handle raw array response
-            let earnings = await earnRes.json();
-            if (earnings.result) earnings = earnings.result;
+            // Fixed parsing for result.report structure
+            const earnings = earnData.result?.report || [];
 
-            // 1. Worker List & Averages
+            // 1. Worker Processing
             const workers = hrData.result?.workers || hrData.workers || {};
-            let t5=0, t3=0, t24=0;
+            let t5=0, t3=0, t24=0, activeCount=0;
             lastWorkers = Object.keys(workers).map(name => {
                 const s = Array.isArray(workers[name]) ? workers[name][0] : workers[name];
                 const h5v = parseFloat(s.hashrate_300s||0);
-                const h3v = parseFloat(s.hashrate_10800s||0);
-                const h24v = parseFloat(s.hashrate_86400s||0);
-                t5 += h5v; t3 += h3v; t24 += h24v;
-                return { name, h5: h5v/1e12, h3: h3v/1e12, h24: h24v/1e12, status: h5v > 0 ? 'ACTIVE' : 'INACTIVE' };
+                t5 += h5v; t3 += parseFloat(s.hashrate_10800s||0); t24 += parseFloat(s.hashrate_86400s||0);
+                if(h5v > 0) activeCount++;
+                return { name, h5: h5v/1e12, h3: s.hashrate_10800s/1e12, h24: s.hashrate_86400s/1e12, status: h5v > 0 ? 'ACTIVE' : 'INACTIVE' };
             });
             renderWorkers();
 
@@ -151,9 +149,14 @@
             document.getElementById('t_est').innerText = Math.floor(parseFloat(u.estimated_earn_next_block||0) * 1e8).toLocaleString() + " Sats";
             document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides || 0) / 1e9).toFixed(2) + "G Shares";
 
-            // 3. Render Earnings (Latest 20)
-            if (Array.isArray(earnings) && earnings.length > 0) {
-                const sorted = earnings.sort((a,b) => b.Blockheight - a.Blockheight).slice(0, 20);
+            // 3. Earnings Table (result.report)
+            if (earnings.length > 0) {
+                // Filter out the dummy block -1 and sort
+                const sorted = earnings
+                    .filter(b => b.Blockheight !== "-1")
+                    .sort((a,b) => parseInt(b.Blockheight) - parseInt(a.Blockheight))
+                    .slice(0, 15);
+
                 document.getElementById('reward-table').innerHTML = sorted.map(b => `
                     <tr>
                         <td><b>#${b.Blockheight}</b></td>
@@ -161,29 +164,61 @@
                         <td>${parseInt(b.GrossUserXctnRwd).toLocaleString()}</td>
                         <td style="color:#8b949e; font-size:0.75rem">${b.TimeUTC.replace('T', ' ').split('.')[0]}</td>
                     </tr>
-                `).join('');
+                `).join('') || "<tr><td colspan='4'>No valid block rewards found.</td></tr>";
             } else {
-                document.getElementById('reward-table').innerHTML = `<tr><td colspan="4">No data found in monthly report.</td></tr>`;
+                document.getElementById('reward-table').innerHTML = `<tr><td colspan="4">No report data found for this address.</td></tr>`;
             }
 
-            // 4. Graph Update
+            // 4. Multi-Dataset Graph Update
             const ts = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
             hChart.data.labels.push(ts);
-            hChart.data.datasets[0].data.push((t5/1e15).toFixed(2));
-            if(hChart.data.labels.length > 25) { hChart.data.labels.shift(); hChart.data.datasets[0].data.shift(); }
+            hChart.data.datasets[0].data.push((t5/1e15).toFixed(2)); // Hashrate
+            hChart.data.datasets[1].data.push(activeCount);          // Workers
+            if(hChart.data.labels.length > 30) { 
+                hChart.data.labels.shift(); 
+                hChart.data.datasets[0].data.shift(); 
+                hChart.data.datasets[1].data.shift(); 
+            }
             hChart.update();
 
-        } catch (e) { 
-            console.error("Fetch failed", e);
-            document.getElementById('reward-table').innerHTML = `<tr><td colspan="4" style="color:var(--dead)">API connection timeout. Check address and proxy.</td></tr>`;
-        }
+        } catch (e) { console.error(e); }
     }
 
     function init() {
-        hChart = new Chart(document.getElementById('hashrateChart'), {
+        const ctx = document.getElementById('multiChart').getContext('2d');
+        hChart = new Chart(ctx, {
             type: 'line',
-            data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.03)', fill: true, tension: 0.4, pointRadius: 0 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#30363d' } }, x: { grid: { display: false } } } }
+            data: { 
+                labels: [], 
+                datasets: [
+                    { 
+                        label: 'PH/s', 
+                        data: [], 
+                        borderColor: '#58a6ff', 
+                        backgroundColor: 'rgba(88,166,255,0.1)', 
+                        yAxisID: 'y',
+                        fill: true, tension: 0.3, pointRadius: 0 
+                    },
+                    { 
+                        label: 'Active Workers', 
+                        data: [], 
+                        borderColor: '#ff7b72', 
+                        borderDash: [5, 5],
+                        yAxisID: 'y1',
+                        fill: false, tension: 0, pointRadius: 2 
+                    }
+                ] 
+            },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                scales: { 
+                    y: { type: 'linear', display: true, position: 'left', grid: { color: '#30363d' }, title: { display: true, text: 'PH/s', color: '#58a6ff' } },
+                    y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Workers', color: '#ff7b72' }, ticks: { stepSize: 1, precision: 0 } },
+                    x: { grid: { display: false } }
+                },
+                plugins: { legend: { labels: { color: '#c9d1d9', font: { size: 10 } } } }
+            }
         });
         update(); setInterval(update, 60000);
     }
