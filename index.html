@@ -145,12 +145,7 @@
 
 <script>
     let WALLET = localStorage.getItem('ocean_wallet');
-    const PROXY_LIST = [
-        'https://api.codetabs.com/v1/proxy?quest=',
-        'https://corsproxy.io/?'
-    ];
-    let currentProxyIdx = 0;
-    
+    const PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
     let histChart, liveChart;
     let fullHistData = []; 
     let lastWorkers = [];
@@ -165,19 +160,6 @@
     function updateWalletFooter() {
         const v = document.getElementById('footer-wallet-input').value.trim();
         if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); }
-    }
-
-    async function fetchWithRetry(url) {
-        try {
-            const res = await fetch(PROXY_LIST[currentProxyIdx] + encodeURIComponent(url));
-            if (!res.ok) throw new Error("Proxy error");
-            return await res.json();
-        } catch (e) {
-            console.warn(`Proxy ${currentProxyIdx} failed, trying backup...`);
-            currentProxyIdx = (currentProxyIdx + 1) % PROXY_LIST.length;
-            const res = await fetch(PROXY_LIST[currentProxyIdx] + encodeURIComponent(url));
-            return await res.json();
-        }
     }
 
     function setSort(k) {
@@ -229,11 +211,12 @@
             const m = String(date.getMonth() + 1).padStart(2, '0');
             const url = `https://api.ocean.xyz/v1/monthly_user_report/${WALLET}/${y}-${m}`;
             try {
-                const data = await fetchWithRetry(url);
+                const res = await fetch(PROXY + encodeURIComponent(url));
+                const data = await res.json();
                 if(data.result?.report) results.push(...data.result.report);
                 if(data.result?.report?.length === 0 && i > 3) break;
             } catch(e) {}
-            date.setMonth(date.setMonth() - 1);
+            date.setMonth(date.getMonth() - 1);
         }
         fullHistData = results.filter(d => parseFloat(d.hashrate_avg_24hr_thsec) > 0)
                               .sort((a,b) => new Date(a.date) - new Date(b.date));
@@ -255,13 +238,19 @@
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const price = parseFloat((await priceRes.json()).data.amount);
 
-            const [hrData, uData, pData, pHR, blocksData] = await Promise.all([
-                fetchWithRetry(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`),
-                fetchWithRetry(`https://api.ocean.xyz/v1/statsnap/${WALLET}`),
-                fetchWithRetry(`https://api.ocean.xyz/v1/latest_block`),
-                fetchWithRetry(`https://api.ocean.xyz/v1/pool_hashrate`),
-                fetchWithRetry(`https://api.ocean.xyz/v1/blocks?page=0&page_size=30`)
+            const [hrRes, uRes, poolRes, pHRRes, blocksRes] = await Promise.all([
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=30`))
             ]);
+
+            const hrData = await hrRes.json();
+            const u = (await uRes.json()).result || {};
+            const pData = await poolRes.json();
+            const pHR = await pHRRes.json();
+            const blocksData = await blocksRes.json();
 
             const block = pData.result?.blocks?.[0] || {};
             document.getElementById('p-height').innerText = "#" + (block.height || "...");
@@ -279,7 +268,6 @@
             for (const b of blocks) { cum += parseFloat(b.accepted_shares || 0); k++; if (cum >= sharelog) break; }
             document.getElementById('p-blocks').innerText = k;
 
-            const u = uData.result || {};
             const unpaid = parseFloat(u.unpaid||0);
             document.getElementById('t_unpaid').innerText = unpaid.toFixed(8);
             document.getElementById('t_usd').innerText = "$" + (unpaid * price).toFixed(2);
@@ -287,9 +275,9 @@
             document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides||0)/1e9).toFixed(2) + "G";
 
             let t5=0, t3=0, t24=0, active=0;
-            const ws = hrData.result?.workers || {};
+            const ws = hrData.result?.workers || hrData.workers || {};
             lastWorkers = Object.keys(ws).map(n => {
-                const s = ws[n];
+                const s = Array.isArray(ws[n]) ? ws[n][0] : ws[n];
                 const h5 = parseFloat(s.hashrate_300s||0);
                 t5 += h5; t3 += parseFloat(s.hashrate_10800s||0); t24 += parseFloat(s.hashrate_86400s||0);
                 if(h5 > 0) active++;
