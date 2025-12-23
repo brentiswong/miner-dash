@@ -26,7 +26,7 @@
 </head>
 <body>
 
-<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH Dashboard</h2><input type="text" id="wallet-input" placeholder="BTC Address"><br><br><button onclick="login()">Sync Dashboard</button></div></div>
+<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH Dashboard</h2><input type="text" id="wallet-input" placeholder="Enter Wallet Address"><br><br><button onclick="login()">Sync Dashboard</button></div></div>
 
 <div class="container">
     <div class="grid">
@@ -50,12 +50,12 @@
     <div class="chart-box"><canvas id="hashrateChart"></canvas></div>
 
     <div class="table-container">
-        <h3>Recent Block Earnings (Monthly Report)</h3>
+        <h3>Recent Block Earnings (Live Monthly Report)</h3>
         <table>
             <thead>
                 <tr><th>Block Height</th><th>Net Reward (Sats)</th><th>Fee Reward (Sats)</th><th>Date (UTC)</th></tr>
             </thead>
-            <tbody id="reward-table"><tr><td colspan="4">Waiting for API...</td></tr></tbody>
+            <tbody id="reward-table"><tr><td colspan="4">Syncing with blockchain...</td></tr></tbody>
         </table>
     </div>
 
@@ -64,7 +64,7 @@
         <table>
             <thead>
                 <tr>
-                    <th onclick="setSort('name')">Miner Name ↕</th>
+                    <th onclick="setSort('name')">Name ↕</th>
                     <th onclick="setSort('h5')">5m (TH/s) ↕</th>
                     <th onclick="setSort('h3')">3h (TH/s) ↕</th>
                     <th onclick="setSort('h24')">24h (TH/s) ↕</th>
@@ -83,7 +83,10 @@
     let currentSort = { key: 'name', asc: true };
     let lastWorkers = [];
 
-    function login() { const v = document.getElementById('wallet-input').value.trim(); if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } }
+    function login() { 
+        const v = document.getElementById('wallet-input').value.trim(); 
+        if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } 
+    }
 
     function setSort(key) {
         if (currentSort.key === key) currentSort.asc = !currentSort.asc;
@@ -97,14 +100,8 @@
             return currentSort.asc ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
         });
         document.getElementById('worker-table').innerHTML = sorted.map(m => `
-            <tr>
-                <td><b>${m.name}</b></td>
-                <td>${m.h5.toFixed(2)}</td>
-                <td>${m.h3.toFixed(2)}</td>
-                <td>${m.h24.toFixed(2)}</td>
-                <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td>
-            </tr>
-        `).join('');
+            <tr><td><b>${m.name}</b></td><td>${m.h5.toFixed(2)}</td><td>${m.h3.toFixed(2)}</td><td>${m.h24.toFixed(2)}</td>
+            <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td></tr>`).join('');
     }
 
     async function update() {
@@ -115,25 +112,24 @@
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const price = parseFloat((await priceRes.json()).data.amount);
 
-            // Format YYYY-MM for the monthly report endpoint
+            // Fetch current month report
             const now = new Date();
-            const yearMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+            const ym = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
 
-            // Updated Fetching Logic for the provided URL structure
             const [hrRes, uRes, earnRes] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_earnings_report/${WALLET}/${yearMonth}`))
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_earnings_report/${WALLET}/${ym}`))
             ]);
 
             const hrData = await hrRes.json();
             const u = (await uRes.json()).result || {};
             
-            // Handle raw array response for earnings
-            let earnings = await earnRes.json();
-            if (earnings.result) earnings = earnings.result;
+            // Robust parsing for earnings raw array or result object
+            let rawEarn = await earnRes.json();
+            let earnings = Array.isArray(rawEarn) ? rawEarn : (rawEarn.result || []);
 
-            // 1. Worker List & Averages
+            // 1. Averages & Workers
             const workers = hrData.result?.workers || hrData.workers || {};
             let t5=0, t3=0, t24=0;
             lastWorkers = Object.keys(workers).map(name => {
@@ -149,45 +145,42 @@
             document.getElementById('t_hr').innerText = (t5/1e15).toFixed(2) + " PH/s";
             document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
 
-            // 2. Unpaid & Estimates
+            // 2. Financials
             const unpaidBTC = parseFloat(u.unpaid||0);
             document.getElementById('t_unpaid').innerText = Math.floor(unpaidBTC * 1e8).toLocaleString();
             document.getElementById('t_usd').innerText = "$" + (unpaidBTC * price).toFixed(2);
             document.getElementById('t_est').innerText = Math.floor(parseFloat(u.estimated_earn_next_block||0) * 1e8).toLocaleString() + " Sats";
             document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides || 0) / 1e9).toFixed(2) + "G Shares";
 
-            // 3. Earnings Table Processing
-            if (Array.isArray(earnings) && earnings.length > 0) {
-                const sortedBlocks = earnings.sort((a,b) => b.Blockheight - a.Blockheight).slice(0, 10);
-                document.getElementById('reward-table').innerHTML = sortedBlocks.map(b => `
+            // 3. Render Earnings (Latest 15)
+            if (earnings.length > 0) {
+                const sorted = earnings.sort((a,b) => b.Blockheight - a.Blockheight).slice(0, 15);
+                document.getElementById('reward-table').innerHTML = sorted.map(b => `
                     <tr>
                         <td><b>#${b.Blockheight}</b></td>
                         <td style="color:var(--ok)">${parseInt(b.NetUserRwd).toLocaleString()}</td>
                         <td>${parseInt(b.GrossUserXctnRwd).toLocaleString()}</td>
-                        <td style="color:#8b949e">${b.TimeUTC.split('T')[0]}</td>
+                        <td style="color:#8b949e; font-size:0.75rem">${b.TimeUTC.replace('T', ' ').split('.')[0]}</td>
                     </tr>
                 `).join('');
             } else {
-                document.getElementById('reward-table').innerHTML = "<tr><td colspan='4'>No data for " + yearMonth + "</td></tr>";
+                document.getElementById('reward-table').innerHTML = `<tr><td colspan="4">No blocks found for ${ym} yet.</td></tr>`;
             }
 
-            // 4. Graph Update
-            const timeStr = now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-            hChart.data.labels.push(timeStr);
+            // 4. Graph
+            const ts = now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            hChart.data.labels.push(ts);
             hChart.data.datasets[0].data.push((t5/1e15).toFixed(2));
             if(hChart.data.labels.length > 25) { hChart.data.labels.shift(); hChart.data.datasets[0].data.shift(); }
             hChart.update();
 
-        } catch (e) { 
-            console.error("API Error", e);
-            document.getElementById('reward-table').innerHTML = "<tr><td colspan='4' style='color:var(--dead)'>Error Loading Report</td></tr>";
-        }
+        } catch (e) { console.error(e); }
     }
 
     function init() {
         hChart = new Chart(document.getElementById('hashrateChart'), {
             type: 'line',
-            data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.05)', fill: true, tension: 0.4, pointRadius: 0 }] },
+            data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.03)', fill: true, tension: 0.4, pointRadius: 0 }] },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#30363d' } }, x: { grid: { display: false } } } }
         });
         update(); setInterval(update, 60000);
