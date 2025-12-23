@@ -39,17 +39,17 @@
         <div class="card">
             <div class="label">Live Hashrate</div>
             <div id="t_hr" class="value">0.00 TH/s</div>
-            <div id="t_hr_avg" class="sub-value">Pool Hash: ...</div>
+            <div id="t_hr_avg" class="sub-value">Pool: ...</div>
         </div>
         <div class="card">
-            <div class="label">TIDES Window Blocks</div>
+            <div class="label">Blocks (TIDES Window)</div>
             <div id="t_blocks" class="value">0</div>
-            <div id="t_block_status" class="sub-value">Window: ~8 Blocks</div>
+            <div id="t_block_status" class="sub-value">Window: ~8x Network Diff</div>
         </div>
         <div class="card">
-            <div class="label">Current Luck</div>
+            <div class="label">Pool Luck</div>
             <div id="t_luck" class="value">0%</div>
-            <div id="t_luck_sub" class="sub-value">Wait for Block...</div>
+            <div id="t_luck_sub" class="sub-value">Rolling Efficiency</div>
         </div>
         <div class="card">
             <div class="label">Unpaid Balance</div>
@@ -93,7 +93,7 @@
     function logout() { localStorage.clear(); location.reload(); }
 
     function initChart() {
-        const saved = JSON.parse(localStorage.getItem('miner_history_v12') || '{"labels":[], "h5":[], "h3":[], "h24":[], "u": "TH/s"}');
+        const saved = JSON.parse(localStorage.getItem('miner_history_v13') || '{"labels":[], "h5":[], "h3":[], "h24":[], "u": "TH/s"}');
         const ctx = document.getElementById('hashrateChart').getContext('2d');
         chart = new Chart(ctx, {
             type: 'line',
@@ -136,35 +136,35 @@
             const price = parseFloat(btcJson.data.amount) || 0;
 
             const hrUrl = PROXY + encodeURIComponent(`${OCEAN_API}/user_hashrate_full/${WALLET}`);
-            const snUrl = PROXY + encodeURIComponent(`${OCEAN_API}/statsnap/${WALLET}`);
             const poolUrl = PROXY + encodeURIComponent(`${OCEAN_API}/statsnap`);
+            const userUrl = PROXY + encodeURIComponent(`${OCEAN_API}/statsnap/${WALLET}`);
             
-            const [hrRes, snRes, poolRes] = await Promise.all([fetch(hrUrl), fetch(snUrl), fetch(poolUrl)]);
+            const [hrRes, poolRes, userRes] = await Promise.all([fetch(hrUrl), fetch(poolUrl), fetch(userUrl)]);
             const hrData = await hrRes.json();
-            const snData = await snRes.json();
             const poolData = await poolRes.json();
+            const userData = await userRes.json();
 
-            const stats = snData.result || snData;
+            // GLOBAL POOL STATS
             const pStats = poolData.result || poolData;
+            const uStats = userData.result || userData;
 
-            // TIDES Window logic
-            // Ocean's 'blocks_found' in the statsnap is usually within the active TIDES window
-            const windowBlocks = stats.pool_blocks_found_window || stats.blocks_found || 0;
+            // CORRECTED TIDES BLOCKS
+            // We prioritize 'pool_blocks_found_window' which is the explicit TIDES window metric
+            const windowBlocks = pStats.pool_blocks_found_window || pStats.blocks_found || 0;
             document.getElementById('t_blocks').innerText = windowBlocks;
-            document.getElementById('t_block_status').innerText = windowBlocks > 0 ? "Blocks in Window" : "Awaiting Pool Block";
+            document.getElementById('t_block_status').innerText = windowBlocks >= 4 ? "Healthy Window" : "Window Filling...";
             
-            // Luck based on Pool Effort
-            const luck = (parseFloat(pStats.luck) * 100) || (parseFloat(stats.luck) * 100) || 0;
+            // LUCK PERCENTAGE
+            const luck = (parseFloat(pStats.luck) * 100) || 0;
             document.getElementById('t_luck').innerText = luck.toFixed(1) + "%";
             document.getElementById('t_luck').style.color = luck >= 100 ? 'var(--ok)' : 'var(--warn)';
-            document.getElementById('t_luck_sub').innerText = luck > 0 ? "Pool Efficiency" : "Calculating...";
 
-            // Balance
-            const btcBalance = parseFloat(stats.unpaid) || 0;
+            // UNPAID BALANCE
+            const btcBalance = parseFloat(uStats.unpaid) || 0;
             document.getElementById('t_unpaid').innerText = `${btcBalance.toFixed(8)} BTC`;
             document.getElementById('t_usd').innerText = `$${(btcBalance * price).toLocaleString(undefined, {minimumFractionDigits: 2})} USD`;
 
-            // Workers
+            // WORKER TABLE
             const wObj = hrData.result?.workers || hrData.workers || {};
             let t5 = 0, t3 = 0, t24 = 0;
             currentWorkers = Object.keys(wObj).map(name => {
@@ -175,10 +175,11 @@
             });
             renderWorkers();
 
+            // CHART DATA
             const s5 = formatHashrate(t5), s3 = formatHashrate(t3), s24 = formatHashrate(t24);
-            const pHash = formatHashrate(parseFloat(pStats.hashrate_3600s) || 0);
+            const poolH = formatHashrate(parseFloat(pStats.hashrate_3600s) || 0);
             document.getElementById('t_hr').innerText = s5.v + " " + s5.u;
-            document.getElementById('t_hr_avg').innerText = `Pool: ${pHash.v} ${pHash.u}`;
+            document.getElementById('t_hr_avg').innerText = `Pool: ${poolH.v} ${poolH.u}`;
 
             const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             chart.options.scales.y.title.text = 'Hashrate (' + s5.u + ')';
@@ -188,8 +189,9 @@
             chart.data.datasets[2].data.push(s24.v);
             if (chart.data.labels.length > 288) { chart.data.labels.shift(); chart.data.datasets.forEach(d => d.data.shift()); }
             chart.update();
-            localStorage.setItem('miner_history_v12', JSON.stringify({ labels: chart.data.labels, h5: chart.data.datasets[0].data, h3: chart.data.datasets[1].data, h24: chart.data.datasets[2].data, u: s5.u }));
-        } catch (e) { console.error("Update failed:", e); }
+            
+            localStorage.setItem('miner_history_v13', JSON.stringify({ labels: chart.data.labels, h5: chart.data.datasets[0].data, h3: chart.data.datasets[1].data, h24: chart.data.datasets[2].data, u: s5.u }));
+        } catch (e) { console.error("Update Error:", e); }
     }
 
     if (WALLET) { initChart(); update(); setInterval(update, 300000); }
