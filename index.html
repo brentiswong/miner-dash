@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NGU TECH - Persistent Dashboard v10</title>
+    <title>NGU TECH - Stable Build</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; --warn: #d29922; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
         .container { max-width: 1200px; margin: auto; }
         #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
         .login-card { background: var(--card); padding: 30px; border-radius: 12px; border: 1px solid var(--border); text-align: center; width: 90%; max-width: 400px; }
@@ -15,14 +15,14 @@
         button { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 25px; }
         .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; }
-        .label { font-size: 0.8rem; color: #8b949e; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; }
+        .label { font-size: 0.8rem; color: #8b949e; text-transform: uppercase; font-weight: 600; }
         .value { font-size: 1.8rem; font-weight: bold; color: white; margin-top: 8px; }
         .sub-value { font-size: 0.85rem; color: var(--accent); margin-top: 5px; font-family: monospace; }
         .chart-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 25px; height: 450px; }
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 15px; background: #1c2128; color: #8b949e; font-size: 0.75rem; text-transform: uppercase; cursor: pointer; }
-        th:hover { color: white; }
+        th { text-align: left; padding: 15px; background: #1c2128; color: #8b949e; font-size: 0.75rem; text-transform: uppercase; cursor: pointer; user-select: none; }
+        th:hover { color: white; background: #30363d; }
         td { padding: 15px; border-bottom: 1px solid var(--border); font-family: monospace; font-size: 0.9rem; }
         .status-online { color: var(--ok); font-weight: bold; }
         .status-offline { color: var(--err); font-weight: bold; }
@@ -31,36 +31,16 @@
 </head>
 <body>
 
-<div id="auth-overlay">
-    <div class="login-card">
-        <h2>Miner Access</h2>
-        <input type="text" id="wallet-input" placeholder="Enter Wallet Address (bc1...)">
-        <button onclick="login()">Launch Dashboard</button>
-    </div>
-</div>
+<div id="auth-overlay"><div class="login-card"><h2>Miner Access</h2><input type="text" id="wallet-input" placeholder="Wallet Address"><button onclick="login()">Launch</button></div></div>
 
 <div class="container">
-    <div style="overflow: auto;"><span class="logout" onclick="logout()">LOGOUT & CLEAR CACHE</span></div>
+    <div style="overflow: auto;"><span class="logout" onclick="logout()">LOGOUT & RESET</span></div>
     <div class="grid">
-        <div class="card">
-            <div class="label">Hashrate (Live)</div>
-            <div id="t_hr" class="value">0.00 TH/s</div>
-            <div id="t_hr_avg" class="sub-value">Averages: 3h: 0 | 24h: 0</div>
-        </div>
-        <div class="card">
-            <div class="label">Unpaid Balance</div>
-            <div id="t_unpaid" class="value">0.0000 BTC</div>
-            <div id="t_usd" class="sub-value" style="color: var(--ok);">$0.00 USD</div>
-        </div>
-        <div class="card">
-            <div class="label">Market Price</div>
-            <div id="btc_price" class="value">...</div>
-            <div class="sub-value">Coinbase Live Spot</div>
-        </div>
+        <div class="card"><div class="label">Hashrate (Live)</div><div id="t_hr" class="value">0.00 TH/s</div><div id="t_hr_avg" class="sub-value">Averages: ...</div></div>
+        <div class="card"><div class="label">Unpaid Balance</div><div id="t_unpaid" class="value">0.00 BTC</div><div id="t_usd" class="sub-value" style="color: var(--ok);">$0.00 USD</div></div>
+        <div class="card"><div class="label">BTC Price</div><div id="btc_price" class="value">...</div><div class="sub-value">Coinbase Live</div></div>
     </div>
-
     <div class="chart-container"><canvas id="hashrateChart"></canvas></div>
-
     <div class="table-container">
         <table>
             <thead>
@@ -78,19 +58,14 @@
 </div>
 
 <script>
-    const DB_KEY = 'NGU_TECH_V10';
+    const STORAGE_KEY = 'NGU_STABLE_V1';
     let WALLET = localStorage.getItem('ocean_wallet');
     const PROXY = 'https://api.allorigins.win/raw?url=';
     const OCEAN_API = 'https://api.ocean.xyz/v1';
     let chart, currentWorkers = [], sortKey = 'name', sortAsc = true;
 
-    // Safety: Strip commas and non-numeric junk
-    function cleanNum(val) {
-        if (typeof val === 'string') val = val.replace(/,/g, '');
-        const n = parseFloat(val);
-        return isNaN(n) ? 0 : n;
-    }
-
+    function cleanNum(v) { if(!v) return 0; if(typeof v === 'string') v = v.replace(/,/g, ''); return parseFloat(v) || 0; }
+    
     function formatHashrate(hps) {
         if (!hps || hps <= 0) return { v: 0, u: "TH/s" };
         if (hps >= 1e21) return { v: (hps/1e21).toFixed(2), u: "EH/s" };
@@ -98,44 +73,38 @@
         return { v: (hps/1e12).toFixed(2), u: "TH/s" };
     }
 
-    function login() {
-        const val = document.getElementById('wallet-input').value.trim();
-        if(val) { localStorage.setItem('ocean_wallet', val); location.reload(); }
-    }
-
+    function login() { const val = document.getElementById('wallet-input').value.trim(); if(val) { localStorage.setItem('ocean_wallet', val); location.reload(); } }
     function logout() { localStorage.clear(); location.reload(); }
 
     function initChart() {
-        const rawSaved = localStorage.getItem(DB_KEY);
-        const saved = rawSaved ? JSON.parse(rawSaved) : {labels:[], h5:[], h3:[], h24:[], u: "TH/s"};
-        
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"labels":[], "h5":[], "h3":[], "h24":[], "u": "TH/s"}');
         const ctx = document.getElementById('hashrateChart').getContext('2d');
         chart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: saved.labels,
                 datasets: [
-                    { label: '5m Hashrate', data: saved.h5, borderColor: '#58a6ff', backgroundColor: 'rgba(88, 166, 255, 0.1)', fill: true, tension: 0.3 },
+                    { label: '5m Hashrate', data: saved.h5, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, tension: 0.3 },
                     { label: '3h Hashrate', data: saved.h3, borderColor: '#d29922', fill: false, borderWidth: 2, pointRadius: 0 },
                     { label: '24h Hashrate', data: saved.h24, borderColor: '#3fb950', borderDash: [5, 5], fill: false, borderWidth: 2, pointRadius: 0 }
                 ]
             },
             options: { 
                 responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { labels: { color: '#8b949e' } } },
                 scales: { 
-                    y: { beginAtZero: true, grid: { color: '#30363d' }, title: { display: true, text: 'Hashrate (' + (saved.u || 'TH/s') + ')', color: '#8b949e' }, ticks: { color: '#8b949e' } },
+                    y: { beginAtZero: true, grid: { color: '#30363d' }, title: { display: true, text: 'Hashrate (' + saved.u + ')', color: '#8b949e' }, ticks: { color: '#8b949e' } },
                     x: { ticks: { color: '#8b949e' }, grid: { display: false } }
-                }
+                },
+                plugins: { legend: { labels: { color: '#8b949e' } } }
             }
         });
     }
 
     function renderWorkers() {
         const sorted = [...currentWorkers].sort((a, b) => {
-            let valA = a[sortKey], valB = b[sortKey];
-            if (typeof valA === 'string') return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
-            return sortAsc ? valA - valB : valB - valA;
+            let vA = a[sortKey], vB = b[sortKey];
+            if (typeof vA === 'string') return sortAsc ? vA.localeCompare(vB) : vB.localeCompare(vA);
+            return sortAsc ? vA - vB : vB - vA;
         });
         document.getElementById('w-body').innerHTML = sorted.map(w => `
             <tr><td><b>${w.name}</b></td><td>${(w.r5/1e12).toFixed(2)}</td><td>${(w.r3/1e12).toFixed(2)}</td><td>${(w.r24/1e12).toFixed(2)}</td>
@@ -143,11 +112,7 @@
         `).join('');
     }
 
-    function sortWorkers(key) {
-        if (sortKey === key) sortAsc = !sortAsc;
-        else { sortKey = key; sortAsc = true; }
-        renderWorkers();
-    }
+    function sortWorkers(key) { if (sortKey === key) sortAsc = !sortAsc; else { sortKey = key; sortAsc = true; } renderWorkers(); }
 
     async function update() {
         if (!WALLET) return;
@@ -165,12 +130,10 @@
             const hrData = await hrRes.json();
             const snData = await snRes.json();
 
-            // Balance logic
             const btcBalance = cleanNum(snData.result?.unpaid || snData.unpaid);
             document.getElementById('t_unpaid').innerText = `${btcBalance.toFixed(8)} BTC`;
             document.getElementById('t_usd').innerText = `$${(btcBalance * price).toLocaleString(undefined, {minimumFractionDigits: 2})} USD`;
 
-            // Worker logic
             const wObj = hrData.result?.workers || hrData.workers || {};
             let t5 = 0, t3 = 0, t24 = 0;
             currentWorkers = Object.keys(wObj).map(name => {
@@ -191,31 +154,20 @@
             chart.data.datasets[0].data.push(s5.v);
             chart.data.datasets[1].data.push(s3.v);
             chart.data.datasets[2].data.push(s24.v);
-            
-            if (chart.data.labels.length > 288) {
-                chart.data.labels.shift();
-                chart.data.datasets.forEach(d => d.data.shift());
-            }
+            if (chart.data.labels.length > 288) { chart.data.labels.shift(); chart.data.datasets.forEach(d => d.data.shift()); }
             chart.update();
 
-            // Save state to survive refresh
-            const state = {
-                labels: chart.data.labels,
-                h5: chart.data.datasets[0].data,
-                h3: chart.data.datasets[1].data,
-                h24: chart.data.datasets[2].data,
-                u: s5.u
-            };
-            localStorage.setItem(DB_KEY, JSON.stringify(state));
-
-        } catch (e) { console.error("Critical Update Failure:", e); }
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ 
+                labels: chart.data.labels, 
+                h5: chart.data.datasets[0].data, 
+                h3: chart.data.datasets[1].data, 
+                h24: chart.data.datasets[2].data, 
+                u: s5.u 
+            }));
+        } catch (e) { console.error(e); }
     }
 
-    if (WALLET) { 
-        initChart(); 
-        update(); 
-        setInterval(update, 300000); 
-    }
+    if (WALLET) { initChart(); update(); setInterval(update, 300000); }
 </script>
 </body>
 </html>
