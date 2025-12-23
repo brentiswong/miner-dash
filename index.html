@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NGU TECH - Precision Miner</title>
+    <title>NGU TECH - Miner Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --warn: #d29922; }
@@ -12,55 +12,54 @@
         #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin-bottom: 25px; }
         .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; }
-        .label { font-size: 0.7rem; color: #8b949e; text-transform: uppercase; font-weight: 600; }
-        .value { font-size: 1.6rem; font-weight: bold; color: white; margin-top: 5px; }
-        .sub-value { font-size: 0.8rem; margin-top: 5px; }
-        .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-top: 20px; }
+        .label { font-size: 0.75rem; color: #8b949e; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; }
+        .value { font-size: 1.7rem; font-weight: bold; color: white; margin-top: 8px; }
+        .sub-value { font-size: 0.85rem; margin-top: 5px; opacity: 0.9; }
+        .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-top: 25px; }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; }
-        td { padding: 12px; border-bottom: 1px solid var(--border); font-family: 'Roboto Mono', monospace; font-size: 0.9rem; }
-        .status-on { color: var(--ok); font-weight: bold; }
-        input { width: 300px; padding: 12px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 6px; }
-        button { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        th { text-align: left; padding: 15px; background: #1c2128; color: #8b949e; font-size: 0.75rem; text-transform: uppercase; }
+        td { padding: 15px; border-bottom: 1px solid var(--border); font-family: monospace; }
+        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 25px; height: 300px; }
+        input { width: 320px; padding: 12px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 6px; font-size: 1rem; }
+        button { background: var(--accent); color: white; border: none; padding: 12px 25px; border-radius: 6px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH</h2><input type="text" id="wallet-input" placeholder="BTC Wallet Address"><br><br><button onclick="login()">Enter Dashboard</button></div></div>
+<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH LOGIN</h2><input type="text" id="wallet-input" placeholder="Enter Wallet Address"><br><br><button onclick="login()">Open Dashboard</button></div></div>
 
 <div class="container">
     <div class="grid">
         <div class="card">
-            <div class="label">Total Miner Hashrate</div>
+            <div class="label">Total Hashrate</div>
             <div id="t_hr" class="value">0.00 PH/s</div>
-            <div id="t_hr_sub" class="sub-value" style="color:var(--accent)">Active Nodes</div>
+            <div id="t_miners" class="sub-value" style="color:var(--accent)">0 Active Miners</div>
         </div>
         <div class="card">
-            <div class="label">Current Luck</div>
-            <div id="t_luck" class="value">100%</div>
-            <div id="t_luck_sub" class="sub-value" style="color:var(--warn)">TIDES Window Efficiency</div>
+            <div class="label">Pool Luck (Window)</div>
+            <div id="t_luck" class="value">--%</div>
+            <div id="t_blocks_sub" class="sub-value" style="color:var(--warn)">0 Blocks Found</div>
         </div>
         <div class="card">
-            <div class="label">Balance (Unpaid)</div>
+            <div class="label">Unpaid Balance</div>
             <div id="t_unpaid" class="value">0.0000 BTC</div>
             <div id="t_usd" class="sub-value" style="color:var(--ok)">$0.00 USD</div>
         </div>
         <div class="card">
-            <div class="label">Est. Next Block Reward</div>
+            <div class="label">Est. Next Payout</div>
             <div id="t_est" class="value">0.0000 BTC</div>
             <div id="t_shares" class="sub-value">0.0G TIDES Shares</div>
         </div>
     </div>
 
+    <div class="chart-box">
+        <canvas id="hashrateChart"></canvas>
+    </div>
+
     <div class="table-container">
         <table>
             <thead>
-                <tr>
-                    <th>Worker</th>
-                    <th>Hashrate (5m)</th>
-                    <th>Hashrate (3h)</th>
-                    <th>Status</th>
-                </tr>
+                <tr><th>Miner Name</th><th>5m Hashrate</th><th>3h Hashrate</th><th>Status</th></tr>
             </thead>
             <tbody id="worker-table"></tbody>
         </table>
@@ -70,8 +69,12 @@
 <script>
     let WALLET = localStorage.getItem('ocean_wallet');
     const PROXY = 'https://api.allorigins.win/raw?url=';
-    
-    function login() { const v = document.getElementById('wallet-input').value.trim(); if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } }
+    let chart;
+
+    function login() { 
+        const v = document.getElementById('wallet-input').value.trim(); 
+        if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } 
+    }
 
     async function update() {
         if (!WALLET) return;
@@ -81,60 +84,69 @@
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const price = parseFloat((await priceRes.json()).data.amount);
 
-            const hrRes = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`));
-            const hrData = await hrRes.json();
-            
-            const statsRes = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`));
-            const statsData = await statsRes.json();
-            const u = statsData.result || statsData;
+            const [hrRes, userRes, poolRes] = await Promise.all([
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/poolstats`))
+            ]);
 
-            // 1. Process Workers (Units in TH/s)
+            const hrData = await hrRes.json();
+            const userData = await userRes.json();
+            const poolData = await poolRes.json();
+            const u = userData.result || userData;
+
+            // 1. Miners Table (Units: TH/s)
             const workers = hrData.result?.workers || hrData.workers || {};
-            let totalH = 0; 
-            let rows = "";
-            
+            let totalH = 0, rows = "";
             Object.keys(workers).sort().forEach(name => {
                 const s = Array.isArray(workers[name]) ? workers[name][0] : workers[name];
                 const h5 = parseFloat(s.hashrate_300s || 0);
                 const h3 = parseFloat(s.hashrate_10800s || 0);
                 totalH += h5;
-                
-                rows += `<tr>
-                    <td><b>${name}</b></td>
-                    <td>${(h5/1e12).toFixed(2)} TH/s</td>
-                    <td>${(h3/1e12).toFixed(2)} TH/s</td>
-                    <td class="status-on">ONLINE</td>
-                </tr>`;
+                rows += `<tr><td><b>${name}</b></td><td>${(h5/1e12).toFixed(2)} TH/s</td><td>${(h3/1e12).toFixed(2)} TH/s</td><td style="color:var(--ok); font-weight:bold;">ONLINE</td></tr>`;
             });
             document.getElementById('worker-table').innerHTML = rows;
 
-            // 2. Global Totals
-            document.getElementById('t_hr').innerText = (totalH / 1e15).toFixed(2) + " PH/s";
-            document.getElementById('t_hr_sub').innerText = Object.keys(workers).length + " Active Nodes";
+            // 2. Dashboard Stats
+            const totalPH = (totalH / 1e15).toFixed(2);
+            document.getElementById('t_hr').innerText = totalPH + " PH/s";
+            document.getElementById('t_miners').innerText = Object.keys(workers).length + " Active Miners";
 
-            // 3. Luck Calculation (Shares in Window / Expected)
-            // Luck is derived from the consistency of shares found vs hashrate.
-            const shares = parseFloat(u.shares_in_tides || 0);
-            const est = parseFloat(u.estimated_earn_next_block || 0);
-            
-            // Simple Luck visual: if shares exist and are growing, luck is > 100%
-            let luck = 100 + (Math.random() * 5); // Fallback visual
-            if (totalH > 0) {
-                luck = (shares / (totalH / 1e12 * 0.8)).toFixed(1); // Rough TIDES Luck estimate
-            }
-            document.getElementById('t_luck').innerText = Math.min(luck, 150).toFixed(0) + "%";
+            // 3. Pool Luck Calculation
+            // Expected blocks in TIDES window is 8. Luck = (Actual Found / Expected) * 100
+            const actualBlocks = poolData.pool_blocks_found_window || 0;
+            const expectedBlocks = 8; 
+            const luckVal = ((actualBlocks / expectedBlocks) * 100).toFixed(0);
+            document.getElementById('t_luck').innerText = luckVal + "%";
+            document.getElementById('t_blocks_sub').innerText = actualBlocks + " Blocks Found in Window";
 
             // 4. Payout Info
             const unpaid = parseFloat(u.unpaid || 0);
             document.getElementById('t_unpaid').innerText = unpaid.toFixed(8) + " BTC";
             document.getElementById('t_usd').innerText = "$" + (unpaid * price).toLocaleString(undefined, {minimumFractionDigits:2});
-            document.getElementById('t_est').innerText = est.toFixed(6) + " BTC";
-            document.getElementById('t_shares').innerText = (shares / 1e9).toFixed(1) + "G TIDES Shares";
+            document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block || 0).toFixed(6) + " BTC";
+            document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides || 0) / 1e9).toFixed(1) + "G TIDES Shares";
 
-        } catch (e) { console.error("Update error", e); }
+            // 5. Graph Update
+            const timeLabel = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            chart.data.labels.push(timeLabel);
+            chart.data.datasets[0].data.push(totalPH);
+            if (chart.data.labels.length > 30) { chart.data.labels.shift(); chart.data.datasets[0].data.shift(); }
+            chart.update();
+
+        } catch (e) { console.error("Update failed", e); }
     }
 
-    if (WALLET) { update(); setInterval(update, 60000); }
+    function initChart() {
+        const ctx = document.getElementById('hashrateChart').getContext('2d');
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', tension: 0.3, fill: true, backgroundColor: 'rgba(88,166,255,0.1)', pointRadius: 2 }] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' } }, x: { grid: { display: false } } }, plugins: { legend: { display: false } } }
+        });
+    }
+
+    if (WALLET) { initChart(); update(); setInterval(update, 60000); }
 </script>
 </body>
 </html>
