@@ -177,6 +177,7 @@
             <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td></tr>`).join('');
     }
 
+    // --- Targeted Fix for Time Logic ---
     function formatTimeAgo(secondsAgo) {
         if (secondsAgo <= 0) return "Just now";
         const days = Math.floor(secondsAgo / 86400);
@@ -198,10 +199,12 @@
             document.getElementById('p-time').innerText = 'Loading...';
             return;
         }
-        const nowUTC = Math.floor(new Date().getTime() / 1000);
+        // Always calculate current UTC time for comparison
+        const nowUTC = Math.floor(Date.now() / 1000);
         const ago = nowUTC - lastBlockTimestamp;
         document.getElementById('p-time').innerText = formatTimeAgo(ago);
     }
+    // ------------------------------------
 
     async function fetchDeepHistory() {
         let date = new Date();
@@ -258,6 +261,7 @@
             document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
             
             if (block.ts) { 
+                // Ensure the block timestamp is parsed to UTC seconds
                 lastBlockTimestamp = Math.floor(new Date(block.ts).getTime() / 1000); 
             }
             updateTimeSince();
