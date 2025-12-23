@@ -2,8 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NGU TECH - Advanced Analytics</title>
+    <title>NGU TECH - Precision Rewards</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --dead: #f85149; }
@@ -16,24 +15,23 @@
         .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; }
         .sub-value { font-size: 0.8rem; margin-top: 4px; opacity: 0.8; }
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: 20px; }
+        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 280px; margin-bottom: 20px; }
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; cursor: pointer; }
         td { padding: 12px; border-bottom: 1px solid var(--border); font-family: monospace; font-size: 0.85rem; }
-        .charts-container { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 250px; }
-        input { width: 300px; padding: 10px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
+        h3 { font-size: 0.9rem; color: var(--accent); margin: 0 0 10px 5px; text-transform: uppercase; }
         button { background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        @media (max-width: 800px) { .charts-container { grid-template-columns: 1fr; } }
+        input { width: 300px; padding: 10px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
     </style>
 </head>
 <body>
 
-<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH Dashboard</h2><input type="text" id="wallet-input" placeholder="BTC Address"><br><br><button onclick="login()">Sync Dashboard</button></div></div>
+<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH</h2><input type="text" id="wallet-input" placeholder="BTC Address"><br><br><button onclick="login()">Sync Dashboard</button></div></div>
 
 <div class="container">
     <div class="grid">
         <div class="card">
-            <div class="label">Network Hashrate (5m / 3h / 24h)</div>
+            <div class="label">Hashrate (5m / 3h / 24h)</div>
             <div id="t_hr" class="value">0.00 PH/s</div>
             <div id="t_hr_avg" class="sub-value" style="color:var(--accent)">0.00 / 0.00 PH/s</div>
         </div>
@@ -43,62 +41,61 @@
             <div id="t_usd" class="sub-value" style="color:var(--ok)">$0.00 USD</div>
         </div>
         <div class="card">
-            <div class="label">Reward Est / TIDES Shares</div>
-            <div id="t_est" class="value">0.0000 BTC</div>
-            <div id="t_shares" class="sub-value">0.00G Shares</div>
+            <div class="label">Est. Next Block Reward</div>
+            <div id="t_est" class="value">0 Sats</div>
+            <div id="t_shares" class="sub-value">0.00G TIDES Shares</div>
         </div>
     </div>
 
-    <div class="charts-container">
-        <div class="chart-box"><canvas id="hashrateChart"></canvas></div>
-        <div class="chart-box"><canvas id="earningsChart"></canvas></div>
-    </div>
+    <div class="chart-box"><canvas id="hashrateChart"></canvas></div>
 
-    <div class="table-container">
-        <table>
-            <thead>
-                <tr>
-                    <th onclick="setSort('name')">Miner Name ↕</th>
-                    <th onclick="setSort('h5')">5m (TH/s) ↕</th>
-                    <th onclick="setSort('h3')">3h (TH/s) ↕</th>
-                    <th onclick="setSort('h24')">24h (TH/s) ↕</th>
-                    <th onclick="setSort('status')">Status ↕</th>
-                </tr>
-            </thead>
-            <tbody id="worker-table"></tbody>
-        </table>
+    <div class="grid">
+        <div class="table-container">
+            <h3>Reward History (Last 10 Blocks)</h3>
+            <table>
+                <thead><tr><th>Block Height</th><th>Amount (Sats)</th><th>Date/Time</th></tr></thead>
+                <tbody id="reward-table"></tbody>
+            </table>
+        </div>
+        <div class="table-container">
+            <h3>Active Miners</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th onclick="setSort('name')">Name ↕</th>
+                        <th onclick="setSort('h5')">5m ↕</th>
+                        <th onclick="setSort('status')">Status ↕</th>
+                    </tr>
+                </thead>
+                <tbody id="worker-table"></tbody>
+            </table>
+        </div>
     </div>
 </div>
 
 <script>
     let WALLET = localStorage.getItem('ocean_wallet');
     const PROXY = 'https://api.allorigins.win/raw?url=';
-    let hChart, eChart;
+    let hChart;
     let currentSort = { key: 'name', asc: true };
-    let lastData = [];
+    let lastWorkers = [];
 
     function login() { const v = document.getElementById('wallet-input').value.trim(); if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } }
 
     function setSort(key) {
         if (currentSort.key === key) currentSort.asc = !currentSort.asc;
         else { currentSort.key = key; currentSort.asc = true; }
-        renderTable();
+        renderWorkers();
     }
 
-    function renderTable() {
-        const sorted = [...lastData].sort((a, b) => {
+    function renderWorkers() {
+        const sorted = [...lastWorkers].sort((a, b) => {
             let valA = a[currentSort.key], valB = b[currentSort.key];
             return currentSort.asc ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
         });
         document.getElementById('worker-table').innerHTML = sorted.map(m => `
-            <tr>
-                <td><b>${m.name}</b></td>
-                <td>${m.h5.toFixed(2)}</td>
-                <td>${m.h3.toFixed(2)}</td>
-                <td>${m.h24.toFixed(2)}</td>
-                <td style="color:${m.status === 'ACTIVE' ? 'var(--ok)' : 'var(--dead)'}; font-weight:bold;">● ${m.status}</td>
-            </tr>
-        `).join('');
+            <tr><td><b>${m.name}</b></td><td>${m.h5.toFixed(2)} TH</td>
+            <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td></tr>`).join('');
     }
 
     async function update() {
@@ -109,61 +106,62 @@
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const price = parseFloat((await priceRes.json()).data.amount);
 
-            const [hrRes, userRes] = await Promise.all([
+            const [hrRes, uRes, rewRes] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`))
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/reward_history/${WALLET}`))
             ]);
 
             const hrData = await hrRes.json();
-            const uData = await userRes.json();
-            const u = uData.result || uData;
+            const u = (await uRes.json()).result || {};
+            const rewards = (await rewRes.json()).result || [];
 
+            // 1. Worker List & Averages
             const workers = hrData.result?.workers || hrData.workers || {};
-            let t5 = 0, t3 = 0, t24 = 0;
-            
-            lastData = Object.keys(workers).map(name => {
+            let t5=0, t3=0, t24=0;
+            lastWorkers = Object.keys(workers).map(name => {
                 const s = Array.isArray(workers[name]) ? workers[name][0] : workers[name];
-                const h5 = parseFloat(s.hashrate_300s || 0);
-                const h3 = parseFloat(s.hashrate_10800s || 0);
-                const h24 = parseFloat(s.hashrate_86400s || 0);
-                t5 += h5; t3 += h3; t24 += h24;
-                return { name, h5: h5/1e12, h3: h3/1e12, h24: h24/1e12, status: h5 > 0 ? 'ACTIVE' : 'INACTIVE' };
+                t5 += parseFloat(s.hashrate_300s||0);
+                t3 += parseFloat(s.hashrate_10800s||0);
+                t24 += parseFloat(s.hashrate_86400s||0);
+                return { name, h5: s.hashrate_300s/1e12, status: s.hashrate_300s > 0 ? 'ACTIVE' : 'INACTIVE' };
             });
-            renderTable();
+            renderWorkers();
 
             document.getElementById('t_hr').innerText = (t5/1e15).toFixed(2) + " PH/s";
             document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
 
-            const unpaid = parseFloat(u.unpaid || 0);
-            const sats = Math.floor(unpaid * 1e8);
-            document.getElementById('t_unpaid').innerText = sats.toLocaleString();
-            document.getElementById('t_usd').innerText = "$" + (unpaid * price).toFixed(2);
-            document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block || 0).toFixed(6) + " BTC";
+            // 2. Financials
+            const unpaidSats = Math.floor(parseFloat(u.unpaid||0) * 1e8);
+            document.getElementById('t_unpaid').innerText = unpaidSats.toLocaleString();
+            document.getElementById('t_usd').innerText = "$" + (parseFloat(u.unpaid||0) * price).toFixed(2);
+            document.getElementById('t_est').innerText = Math.floor(parseFloat(u.estimated_earn_next_block||0) * 1e8).toLocaleString() + " Sats";
             document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides || 0) / 1e9).toFixed(2) + "G Shares";
 
-            const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            [hChart, eChart].forEach(c => { c.data.labels.push(now); if(c.data.labels.length > 20) { c.data.labels.shift(); c.data.datasets[0].data.shift(); } });
+            // 3. Reward Table (Last 10)
+            document.getElementById('reward-table').innerHTML = rewards.slice(0, 10).map(r => `
+                <tr><td>#${r.height}</td><td>${Math.floor(r.amount * 1e8).toLocaleString()}</td>
+                <td>${new Date(r.timestamp * 1000).toLocaleDateString()}</td></tr>`).join('') || "<tr><td colspan='3'>No recent blocks</td></tr>";
+
+            // 4. Graph Update
+            const now = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            hChart.data.labels.push(now);
             hChart.data.datasets[0].data.push((t5/1e15).toFixed(2));
-            eChart.data.datasets[0].data.push(sats);
-            hChart.update(); eChart.update();
+            if(hChart.data.labels.length > 20) { hChart.data.labels.shift(); hChart.data.datasets[0].data.shift(); }
+            hChart.update();
 
         } catch (e) { console.error(e); }
     }
 
-    function initCharts() {
+    function init() {
         hChart = new Chart(document.getElementById('hashrateChart'), {
             type: 'line',
             data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, tension: 0.4 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, title: { display: true, text: 'Hashrate (PH/s)', color: '#c9d1d9' } } }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
         });
-        eChart = new Chart(document.getElementById('earningsChart'), {
-            type: 'line',
-            data: { labels: [], datasets: [{ label: 'Sats', data: [], borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,0.1)', fill: true, tension: 0.4 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, title: { display: true, text: 'Unpaid Balance (Sats)', color: '#c9d1d9' } } }
-        });
+        update(); setInterval(update, 60000);
     }
-
-    if (WALLET) { initCharts(); update(); setInterval(update, 60000); }
+    if (WALLET) init();
 </script>
 </body>
 </html>
