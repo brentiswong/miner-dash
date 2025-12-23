@@ -239,7 +239,10 @@
 
             const block = pData.result?.blocks?.[0] || {};
             document.getElementById('p-height').innerText = "#" + (block.height || "...");
-            document.getElementById('p-finder').innerText = block.username ? (block.username.substring(0,10)) : "...";
+            
+            // Restored original detailed finder data
+            document.getElementById('p-finder').innerText = block.username ? (block.username + (block.workername ? "." + block.workername : "")) : "...";
+            
             document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
             
             if (block.ts) {
