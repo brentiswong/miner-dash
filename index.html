@@ -42,6 +42,7 @@
         <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">TIDES Luck:</span> <span id="p-luck" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Blocks in Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
         <div id="p-time" style="color:#8b949e">Loading...</div>
     </div>
 
@@ -238,17 +239,19 @@
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const price = parseFloat((await priceRes.json()).data.amount);
 
-            const [hrRes, uRes, poolRes, pHRRes] = await Promise.all([
+            const [hrRes, uRes, poolRes, pHRRes, blocksRes] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`))
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=20`))
             ]);
 
             const hrData = await hrRes.json();
             const u = (await uRes.json()).result || {};
             const pData = await poolRes.json();
             const pHR = await pHRRes.json();
+            const blocksData = await blocksRes.json();
 
             const block = pData.result?.blocks?.[0] || {};
             document.getElementById('p-height').innerText = "#" + (block.height || "...");
@@ -260,16 +263,20 @@
             }
             updateTimeSince();
 
-            // Correct TIDES Luck
-            if (block.sharelog_window && block.network_difficulty) {
-                const sharelog = parseFloat(block.sharelog_window);
-                const diff = parseFloat(block.network_difficulty);
-                const b32 = Math.pow(2, 32);
-                const luck = (diff * b32 / sharelog) * 100;
-                document.getElementById('p-luck').innerText = luck.toFixed(1) + "%";
-            } else {
-                document.getElementById('p-luck').innerText = "...";
+            // Correct TIDES Luck using blocks sum
+            const sharelog = parseFloat(block.sharelog_window || 0);
+            let k = 0;
+            let cum = 0;
+            const blocks = blocksData.result?.blocks || [];
+            blocks.sort((a, b) => b.height - a.height); // Descending
+            for (const b of blocks) {
+                cum += parseFloat(b.accepted_shares || 0);
+                k++;
+                if (cum >= sharelog) break;
             }
+            document.getElementById('p-blocks').innerText = k || "...";
+            const luck = (k / 8) * 100;
+            document.getElementById('p-luck').innerText = luck.toFixed(1) + "%";
 
             const unpaid = parseFloat(u.unpaid||0);
             document.getElementById('t_unpaid').innerText = unpaid.toFixed(8);
