@@ -5,7 +5,7 @@
     <title>NGU TECH - Pro BTC Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --worker-line: #ff7b72; --border: #30363d; --ok: #3fb950; --dead: #f85149; }
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --dead: #f85149; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; }
         .container { max-width: 1200px; margin: auto; }
         #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
@@ -18,7 +18,6 @@
         .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; }
         .sub-value { font-size: 0.8rem; margin-top: 4px; opacity: 0.8; }
         .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-        @media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
         .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 320px; position: relative; }
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 25px; }
         table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; }
@@ -28,7 +27,6 @@
         input { width: 340px; padding: 12px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
         button#login-btn { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .dual-table-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
-        @media (max-width: 900px) { .dual-table-grid { grid-template-columns: 1fr; } }
         .txid-link { color: var(--accent); text-decoration: none; font-size: 0.75rem; }
     </style>
 </head>
@@ -38,7 +36,7 @@
 
 <div class="container">
     <div class="pool-status">
-        <div class="stat-item"><span class="pool-label">Pool Hashrate:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Pool HR:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Blocks in Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
@@ -65,20 +63,20 @@
 
     <div class="chart-grid">
         <div class="chart-box"><h3>Historical PH/s</h3><canvas id="histChart"></canvas></div>
-        <div class="chart-box"><h3>Live 24H (HR & Miners)</h3><canvas id="liveChart"></canvas></div>
+        <div class="chart-box"><h3>Live 24H</h3><canvas id="liveChart"></canvas></div>
     </div>
 
     <div class="table-container">
         <div style="display: flex; justify-content: space-between; align-items: center; background: #1c2128; padding-right: 15px;">
             <h3>Miner Status</h3>
-            <input type="text" id="miner-search" style="width: 200px; padding: 6px; font-size: 0.75rem; margin: 8px 0;" placeholder="Search miner name..." onkeyup="renderWorkers()">
+            <input type="text" id="miner-search" style="width: 200px; padding: 6px; font-size: 0.75rem; margin: 8px 0;" placeholder="Search..." onkeyup="renderWorkers()">
         </div>
         <table>
             <thead>
                 <tr>
                     <th onclick="setSort('name')">Name ↕</th>
-                    <th onclick="setSort('h5')">5m (TH/s) ↕</th>
-                    <th onclick="setSort('h3')">3h (TH/s) ↕</th>
+                    <th onclick="setSort('h5')">5m ↕</th>
+                    <th onclick="setSort('h3')">3h ↕</th>
                     <th onclick="setSort('status')">Status ↕</th>
                 </tr>
             </thead>
@@ -90,14 +88,14 @@
         <div class="table-container">
             <h3>Last 10 Earnings</h3>
             <table>
-                <thead><tr><th>Date (UTC)</th><th>Block</th><th>Earned</th></tr></thead>
+                <thead><tr><th>Date</th><th>Block</th><th>Earned</th></tr></thead>
                 <tbody id="earnings-table"></tbody>
             </table>
         </div>
         <div class="table-container">
             <h3>Last 10 Payouts</h3>
             <table>
-                <thead><tr><th>Date (UTC)</th><th>Amount</th><th>TXID</th></tr></thead>
+                <thead><tr><th>Date</th><th>Amount</th><th>TXID</th></tr></thead>
                 <tbody id="payouts-table"></tbody>
             </table>
         </div>
@@ -107,18 +105,9 @@
 <script>
     let WALLET = localStorage.getItem('ocean_wallet');
     const PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
-    let histChart, liveChart, lastWorkers = [], currentSort = { key: 'name', asc: true }, lastBlockTimestamp = 0;
+    let histChart, liveChart, lastWorkers = [], currentSort = { key: 'name', asc: true };
 
     function login() { const v = document.getElementById('wallet-input').value.trim(); if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } }
-
-    async function getCoinbaseTag(height) {
-        try {
-            const res = await fetch(`https://mempool.space/api/v1/mining/pool/ocean/blocks`);
-            const blocks = await res.json();
-            const match = blocks.find(b => b.height === height);
-            return match ? match.minerName : null;
-        } catch (e) { return null; }
-    }
 
     function setSort(k) {
         if (currentSort.key === k) currentSort.asc = !currentSort.asc;
@@ -135,61 +124,83 @@
             <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td></tr>`).join('');
     }
 
+    async function fetchTables() {
+        let date = new Date();
+        let eArr = [], pArr = [];
+        for(let i=0; i<2; i++) {
+            const y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, '0');
+            const [er, pr] = await Promise.all([
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_earnings_report/${WALLET}/${y}-${m}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_payout_report/${WALLET}/${y}-${m}`))
+            ]);
+            const ed = await er.json(), pd = await pr.json();
+            if(ed.result?.report) eArr.push(...ed.result.report);
+            if(pd.result?.report) pArr.push(...pd.result.report);
+            date.setMonth(date.getMonth() - 1);
+        }
+        document.getElementById('earnings-table').innerHTML = eArr.filter(e => e.Blockheight !== "-1").sort((a,b) => new Date(b.TimeUTC) - new Date(a.TimeUTC)).slice(0,10).map(e => `<tr><td>${e.TimeUTC.split('T')[0]}</td><td>#${e.Blockheight}</td><td>${(e.NetUserRwd/1e8).toFixed(8)}</td></tr>`).join('');
+        document.getElementById('payouts-table').innerHTML = pArr.sort((a,b) => new Date(b.TimeUTC) - new Date(a.TimeUTC)).slice(0,10).map(p => `<tr><td>${p.TimeUTC.split('T')[0]}</td><td>${(p.PayoutAmt/1e8).toFixed(8)}</td><td><a class="txid-link" href="https://mempool.space/tx/${p.TXID}" target="_blank">${p.TXID.slice(0,8)}</a></td></tr>`).join('');
+    }
+
     async function update() {
         if (!WALLET) return;
         document.getElementById('auth-overlay').style.display = 'none';
         try {
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const price = parseFloat((await priceRes.json()).data.amount);
-            const [hrRes, uRes, poolRes, pHRRes, blocksRes] = await Promise.all([
+            const [hrRes, uRes, poolRes, pHRRes, bRes, mRes] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=40`))
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=40`)),
+                fetch(`https://mempool.space/api/v1/mining/pool/ocean/blocks`)
             ]);
 
-            const hrData = await hrRes.json(), u = (await uRes.json()).result || {}, pData = await poolRes.json(), pHR = await pHRRes.json(), bData = await blocksRes.json();
+            const hrData = await hrRes.json(), u = (await uRes.json()).result || {}, pData = await poolRes.json(), pHR = await pHRRes.json(), bData = await bRes.json(), mBlocks = await mRes.json();
             const block = pData.result?.blocks?.[0] || {};
             
             document.getElementById('p-height').innerText = "#" + (block.height || "...");
             document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
-            
-            if (block.height) {
-                getCoinbaseTag(block.height).then(tag => {
-                    document.getElementById('p-finder').innerText = tag || block.username || "...";
-                });
-            }
 
-            const unpaid = parseFloat(u.unpaid||0);
-            document.getElementById('t_unpaid').innerText = unpaid.toFixed(8);
-            document.getElementById('t_usd').innerText = "$" + (unpaid * price).toFixed(2);
+            // Use the specific OCEAN Mempool API to find minerName (NiceHash, etc)
+            const match = mBlocks.find(b => b.height === block.height);
+            document.getElementById('p-finder').innerText = match ? match.minerName : (block.username || "...");
+
+            const target = parseFloat(block.sharelog_window || 0);
+            let cum = 0, bWin = 0;
+            for (const b of (bData.result?.blocks || [])) { cum += parseFloat(b.accepted_shares || 0); if (cum >= target) break; bWin++; }
+            document.getElementById('p-blocks').innerText = bWin;
+
+            document.getElementById('t_unpaid').innerText = parseFloat(u.unpaid||0).toFixed(8);
+            document.getElementById('t_usd').innerText = "$" + (parseFloat(u.unpaid||0) * price).toFixed(2);
             document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block||0).toFixed(8);
             document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides||0)/1e9).toFixed(2) + "G";
 
-            let t5=0, t3=0, active=0;
+            let t5=0, t3=0, t24=0;
             const ws = hrData.result?.workers || hrData.workers || {};
             lastWorkers = Object.keys(ws).map(n => {
                 const s = Array.isArray(ws[n]) ? ws[n][0] : ws[n];
                 const h5 = parseFloat(s.hashrate_300s||0);
-                t5 += h5; t3 += parseFloat(s.hashrate_10800s||0);
-                if(h5 > 0) active++;
+                t5 += h5; t3 += parseFloat(s.hashrate_10800s||0); t24 += parseFloat(s.hashrate_86400s||0);
                 return { name: n, h5: h5/1e12, h3: (s.hashrate_10800s||0)/1e12, status: h5 > 0 ? 'ACTIVE' : 'INACTIVE' };
             });
             renderWorkers();
             document.getElementById('t_hr').innerText = (t5/1e15).toFixed(2) + " PH/s";
+            document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
 
             const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
             liveChart.data.labels.push(time);
             liveChart.data.datasets[0].data.push((t5/1e15).toFixed(2));
             if(liveChart.data.labels.length > 50) { liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); }
             liveChart.update();
+            if(!window.loaded) { fetchTables(); window.loaded = true; }
         } catch (e) {}
     }
 
     window.onload = () => {
-        histChart = new Chart(document.getElementById('histChart'), { type: 'line', data: { labels: ['Day 1'], datasets: [{ label: 'PH/s', data: [0], borderColor: '#58a6ff' }] }, options: { responsive: true, maintainAspectRatio: false } });
-        liveChart = new Chart(document.getElementById('liveChart'), { type: 'line', data: { labels: [], datasets: [{ label: 'Live PH/s', data: [], borderColor: '#3fb950', tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false } });
+        histChart = new Chart(document.getElementById('histChart'), { type: 'line', data: { labels: ['Avg'], datasets: [{ label: 'PH/s', data: [0], borderColor: '#58a6ff' }] }, options: { responsive: true, maintainAspectRatio: false } });
+        liveChart = new Chart(document.getElementById('liveChart'), { type: 'line', data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#3fb950', tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false } });
         if (WALLET) { update(); setInterval(update, 60000); }
     };
 </script>
