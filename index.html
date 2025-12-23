@@ -18,7 +18,10 @@
         .label { font-size: 0.65rem; color: #8b949e; text-transform: uppercase; font-weight: 700; }
         .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; font-family: monospace; }
         .sub-value { font-size: 0.8rem; margin-top: 4px; opacity: 0.8; }
-        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 250px; margin-bottom: 20px; }
+        
+        .chart-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 220px; }
+        
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 25px; }
         table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; }
         th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; }
@@ -66,15 +69,22 @@
         </div>
     </div>
 
-    <div class="chart-box">
-        <canvas id="liveChart"></canvas>
+    <div class="chart-container">
+        <div class="chart-box">
+            <div class="label" style="margin-bottom:10px">Live Hashrate (PH/s)</div>
+            <canvas id="hashChart"></canvas>
+        </div>
+        <div class="chart-box">
+            <div class="label" style="margin-bottom:10px">TIDES Shares History</div>
+            <canvas id="shareChart"></canvas>
+        </div>
     </div>
 
     <div class="table-container">
         <h3>Address Recent Earnings</h3>
         <table>
             <thead><tr><th>Height</th><th>Time (UTC)</th><th>Amount (BTC)</th></tr></thead>
-            <tbody id="earnings-table"></tbody>
+            <tbody id="earnings-table"><tr><td colspan="3" style="text-align:center">Loading data...</td></tr></tbody>
         </table>
     </div>
 
@@ -90,27 +100,25 @@
 <script>
     let WALLET = localStorage.getItem('ocean_wallet');
     const PROXY = 'https://api.allorigins.win/raw?url=';
-    let liveChart;
+    let hashChart, shareChart;
 
     function login() { 
         const v = document.getElementById('wallet-input').value.trim(); 
         if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } 
     }
 
-    function getRelativeTime(ts) {
-        if (!ts) return "...";
-        const date = new Date(ts.includes('Z') ? ts : ts + 'Z');
-        const diff = Math.floor((Date.now() - date.getTime()) / 1000);
-        if (diff < 3600) return Math.floor(diff/60) + "m ago";
-        if (diff < 86400) return Math.floor(diff/3600) + "h ago";
-        return Math.floor(diff/86400) + "d ago";
-    }
-
-    function initChart() {
-        const ctx = document.getElementById('liveChart').getContext('2d');
-        liveChart = new Chart(ctx, {
+    function initCharts() {
+        const hashCtx = document.getElementById('hashChart').getContext('2d');
+        hashChart = new Chart(hashCtx, {
             type: 'line',
-            data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, tension: 0.3, pointRadius: 0 }] },
+            data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, tension: 0.3, pointRadius: 2 }] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { beginAtZero: true, grid: { color: '#30363d' } } }, plugins: { legend: { display: false } } }
+        });
+
+        const shareCtx = document.getElementById('shareChart').getContext('2d');
+        shareChart = new Chart(shareCtx, {
+            type: 'bar',
+            data: { labels: [], datasets: [{ label: 'G-Shares', data: [], backgroundColor: '#3fb950' }] },
             options: { responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { beginAtZero: true, grid: { color: '#30363d' } } }, plugins: { legend: { display: false } } }
         });
     }
@@ -118,13 +126,15 @@
     async function update() {
         if (!WALLET) return;
         document.getElementById('auth-overlay').style.display = 'none';
+        
+        const currentMonth = new Date().toISOString().slice(0, 7); // Format: YYYY-MM
 
         try {
             const [hrRes, uRes, poolRes, earnRes, pHRRes, btcRes] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_blocks/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_blocks/${WALLET}/${currentMonth}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`)),
                 fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot")
             ]);
@@ -134,31 +144,40 @@
             const pData = await poolRes.json();
             const earnData = await earnRes.json();
             const pHRData = await pHRRes.json();
-            const price = (await btcRes.json()).data.amount;
+            const btcData = await btcRes.json();
+            const price = parseFloat(btcData.data.amount);
 
-            // Pool Hashrate (from 300s)
+            // 1. Pool Hashrate
             const poolPH = parseFloat(pHRData.result.pool_300s || 0) / 1e18;
             document.getElementById('pool-hr').innerText = poolPH.toFixed(2) + " EH/s";
 
-            // Latest Block
+            // 2. Latest Block
             const b = pData.result.blocks[0];
             document.getElementById('p-height').innerText = "#" + b.height;
             document.getElementById('p-link').href = `https://mempool.space/block/${b.height}`;
             document.getElementById('p-finder').innerText = b.workername || "Miner";
             document.getElementById('p-value').innerText = (parseFloat(b.total_reward_sats)/1e8).toFixed(4) + " BTC";
-            document.getElementById('p-time').innerText = getRelativeTime(b.ts);
+            
+            const bDate = new Date(b.ts.split('.')[0] + 'Z');
+            document.getElementById('p-time').innerText = bDate.toLocaleTimeString();
 
-            // Earnings Table
-            const report = earnData.result.report || [];
-            document.getElementById('earnings-table').innerHTML = report.filter(x => x.Blockheight !== "-1").slice(0,10).map(blk => `
-                <tr>
-                    <td><a href="https://mempool.space/block/${blk.Blockheight}" target="_blank" style="color:var(--accent)">#${blk.Blockheight}</a></td>
-                    <td>${blk.TimeUTC.replace('T', ' ').replace('Z', '')}</td>
-                    <td style="color:var(--ok)">${(parseFloat(blk.NetUserRwd)/1e8).toFixed(8)}</td>
-                </tr>
-            `).join('');
+            // 3. Address Earnings Table
+            const report = earnData.result?.report || [];
+            const filteredReport = report.filter(x => x.Blockheight && x.Blockheight !== "-1");
+            
+            if (filteredReport.length > 0) {
+                document.getElementById('earnings-table').innerHTML = filteredReport.reverse().slice(0, 10).map(blk => `
+                    <tr>
+                        <td><a href="https://mempool.space/block/${blk.Blockheight}" target="_blank" style="color:var(--accent)">#${blk.Blockheight}</a></td>
+                        <td>${blk.TimeUTC.replace('T', ' ').replace('Z', '')}</td>
+                        <td style="color:var(--ok); font-weight:bold;">${(parseFloat(blk.NetUserRwd)/1e8).toFixed(8)}</td>
+                    </tr>
+                `).join('');
+            } else {
+                document.getElementById('earnings-table').innerHTML = '<tr><td colspan="3" style="text-align:center">No earnings for ' + currentMonth + '</td></tr>';
+            }
 
-            // Workers
+            // 4. Workers
             let t5=0, t24=0;
             const ws = hrData.result.workers || {};
             document.getElementById('worker-table').innerHTML = Object.keys(ws).map(n => {
@@ -168,26 +187,43 @@
                 return `<tr><td><b>${n}</b></td><td>${(h5/1e12).toFixed(2)}</td><td>${((s.hashrate_10800s||0)/1e12).toFixed(2)}</td><td>${((s.hashrate_86400s||0)/1e12).toFixed(2)}</td><td style="color:${h5>0?'var(--ok)':'var(--dead)'}">● ${h5>0?'ACTIVE':'DEAD'}</td></tr>`;
             }).join('');
 
-            // Stats
+            // 5. Card Stats
             const ph = t5/1e15;
+            const sharesG = parseFloat(uData.result.shares_in_tides || 0) / 1e9;
             document.getElementById('t_hr').innerText = ph.toFixed(2) + " PH/s";
             document.getElementById('t_hr_avg').innerText = "24h Avg: " + (t24/1e15).toFixed(2) + " PH/s";
-            document.getElementById('t_unpaid').innerText = parseFloat(uData.result.unpaid).toFixed(8);
-            document.getElementById('t_usd').innerText = "$" + (parseFloat(uData.result.unpaid) * price).toFixed(2);
-            document.getElementById('t_est').innerText = parseFloat(uData.result.estimated_earn_next_block).toFixed(8);
-            document.getElementById('t_shares').innerText = (parseFloat(uData.result.shares_in_tides)/1e9).toFixed(2) + "G";
+            document.getElementById('t_unpaid').innerText = parseFloat(uData.result.unpaid || 0).toFixed(8);
+            document.getElementById('t_usd').innerText = "$" + (parseFloat(uData.result.unpaid || 0) * price).toFixed(2);
+            document.getElementById('t_est').innerText = parseFloat(uData.result.estimated_earn_next_block || 0).toFixed(8);
+            document.getElementById('t_shares').innerText = sharesG.toFixed(2) + "G";
 
-            // Update Chart
-            const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            liveChart.data.labels.push(now);
-            liveChart.data.datasets[0].data.push(ph.toFixed(2));
-            if(liveChart.data.labels.length > 20) { liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); }
-            liveChart.update();
+            // 6. Update Both Graphs
+            const nowLabel = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            // Hashrate Chart
+            hashChart.data.labels.push(nowLabel);
+            hashChart.data.datasets[0].data.push(ph.toFixed(2));
+            if(hashChart.data.labels.length > 20) { hashChart.data.labels.shift(); hashChart.data.datasets[0].data.shift(); }
+            hashChart.update();
 
-        } catch (e) { console.error(e); }
+            // TIDES Share Chart
+            shareChart.data.labels.push(nowLabel);
+            shareChart.data.datasets[0].data.push(sharesG.toFixed(2));
+            if(shareChart.data.labels.length > 20) { shareChart.data.labels.shift(); shareChart.data.datasets[0].data.shift(); }
+            shareChart.update();
+
+        } catch (e) { 
+            console.error("Dashboard Sync Error:", e);
+        }
     }
 
-    if (WALLET) { initChart(); update(); setInterval(update, 60000); }
+    if (WALLET) { 
+        initCharts(); 
+        update(); 
+        setInterval(update, 60000); 
+    } else {
+        document.getElementById('auth-overlay').style.display = 'flex';
+    }
 </script>
 </body>
 </html>
