@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>NGU TECH - Miner & Rewards</title>
+    <title>NGU TECH - BTC Reward Tracker</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --worker-line: #ff7b72; --border: #30363d; --ok: #3fb950; --dead: #f85149; }
@@ -36,13 +36,13 @@
             <div id="t_hr_avg" class="sub-value" style="color:var(--accent)">0.00 / 0.00 PH/s</div>
         </div>
         <div class="card">
-            <div class="label">Unpaid (Sats)</div>
-            <div id="t_unpaid" class="value">0</div>
+            <div class="label">Unpaid (BTC)</div>
+            <div id="t_unpaid" class="value">0.00000000</div>
             <div id="t_usd" class="sub-value" style="color:var(--ok)">$0.00 USD</div>
         </div>
         <div class="card">
             <div class="label">Est. Next Block / TIDES</div>
-            <div id="t_est" class="value">0 Sats</div>
+            <div id="t_est" class="value">0.00000000</div>
             <div id="t_shares" class="sub-value">0.00G Shares</div>
         </div>
     </div>
@@ -53,9 +53,9 @@
         <h3>Monthly Earnings Report</h3>
         <table>
             <thead>
-                <tr><th>Block Height</th><th>Net Reward (Sats)</th><th>Fee Reward (Sats)</th><th>Date (UTC)</th></tr>
+                <tr><th>Block Height</th><th>Net Earnings (BTC)</th><th>Date (UTC)</th></tr>
             </thead>
-            <tbody id="reward-table"><tr><td colspan="4">Loading data structure...</td></tr></tbody>
+            <tbody id="reward-table"><tr><td colspan="3">Processing report...</td></tr></tbody>
         </table>
     </div>
 
@@ -94,6 +94,8 @@
         renderWorkers();
     }
 
+    function toBTC(sats) { return (parseInt(sats) / 100000000).toFixed(8); }
+
     function renderWorkers() {
         const sorted = [...lastWorkers].sort((a, b) => {
             let valA = a[currentSort.key], valB = b[currentSort.key];
@@ -123,8 +125,6 @@
             const hrData = await hrRes.json();
             const u = (await uRes.json()).result || {};
             const earnData = await earnRes.json();
-            
-            // Fixed parsing for result.report structure
             const earnings = earnData.result?.report || [];
 
             // 1. Worker Processing
@@ -142,16 +142,15 @@
             document.getElementById('t_hr').innerText = (t5/1e15).toFixed(2) + " PH/s";
             document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
 
-            // 2. Financials
+            // 2. Financials (BTC)
             const unpaidBTC = parseFloat(u.unpaid||0);
-            document.getElementById('t_unpaid').innerText = Math.floor(unpaidBTC * 1e8).toLocaleString();
+            document.getElementById('t_unpaid').innerText = unpaidBTC.toFixed(8);
             document.getElementById('t_usd').innerText = "$" + (unpaidBTC * price).toFixed(2);
-            document.getElementById('t_est').innerText = Math.floor(parseFloat(u.estimated_earn_next_block||0) * 1e8).toLocaleString() + " Sats";
+            document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block||0).toFixed(8);
             document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides || 0) / 1e9).toFixed(2) + "G Shares";
 
-            // 3. Earnings Table (result.report)
+            // 3. Earnings Table (BTC)
             if (earnings.length > 0) {
-                // Filter out the dummy block -1 and sort
                 const sorted = earnings
                     .filter(b => b.Blockheight !== "-1")
                     .sort((a,b) => parseInt(b.Blockheight) - parseInt(a.Blockheight))
@@ -160,20 +159,17 @@
                 document.getElementById('reward-table').innerHTML = sorted.map(b => `
                     <tr>
                         <td><b>#${b.Blockheight}</b></td>
-                        <td style="color:var(--ok)">${parseInt(b.NetUserRwd).toLocaleString()}</td>
-                        <td>${parseInt(b.GrossUserXctnRwd).toLocaleString()}</td>
+                        <td style="color:var(--ok)">${toBTC(b.NetUserRwd)}</td>
                         <td style="color:#8b949e; font-size:0.75rem">${b.TimeUTC.replace('T', ' ').split('.')[0]}</td>
                     </tr>
-                `).join('') || "<tr><td colspan='4'>No valid block rewards found.</td></tr>";
-            } else {
-                document.getElementById('reward-table').innerHTML = `<tr><td colspan="4">No report data found for this address.</td></tr>`;
+                `).join('');
             }
 
-            // 4. Multi-Dataset Graph Update
+            // 4. Graph Update
             const ts = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
             hChart.data.labels.push(ts);
-            hChart.data.datasets[0].data.push((t5/1e15).toFixed(2)); // Hashrate
-            hChart.data.datasets[1].data.push(activeCount);          // Workers
+            hChart.data.datasets[0].data.push((t5/1e15).toFixed(2));
+            hChart.data.datasets[1].data.push(activeCount);
             if(hChart.data.labels.length > 30) { 
                 hChart.data.labels.shift(); 
                 hChart.data.datasets[0].data.shift(); 
@@ -191,30 +187,15 @@
             data: { 
                 labels: [], 
                 datasets: [
-                    { 
-                        label: 'PH/s', 
-                        data: [], 
-                        borderColor: '#58a6ff', 
-                        backgroundColor: 'rgba(88,166,255,0.1)', 
-                        yAxisID: 'y',
-                        fill: true, tension: 0.3, pointRadius: 0 
-                    },
-                    { 
-                        label: 'Active Workers', 
-                        data: [], 
-                        borderColor: '#ff7b72', 
-                        borderDash: [5, 5],
-                        yAxisID: 'y1',
-                        fill: false, tension: 0, pointRadius: 2 
-                    }
+                    { label: 'PH/s', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', yAxisID: 'y', fill: true, tension: 0.3, pointRadius: 0 },
+                    { label: 'Active Workers', data: [], borderColor: '#ff7b72', borderDash: [5, 5], yAxisID: 'y1', fill: false, tension: 0, pointRadius: 2 }
                 ] 
             },
             options: { 
-                responsive: true, 
-                maintainAspectRatio: false, 
+                responsive: true, maintainAspectRatio: false, 
                 scales: { 
-                    y: { type: 'linear', display: true, position: 'left', grid: { color: '#30363d' }, title: { display: true, text: 'PH/s', color: '#58a6ff' } },
-                    y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Workers', color: '#ff7b72' }, ticks: { stepSize: 1, precision: 0 } },
+                    y: { type: 'linear', position: 'left', grid: { color: '#30363d' }, title: { display: true, text: 'PH/s', color: '#58a6ff' } },
+                    y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Workers', color: '#ff7b72' }, ticks: { precision: 0 } },
                     x: { grid: { display: false } }
                 },
                 plugins: { legend: { labels: { color: '#c9d1d9', font: { size: 10 } } } }
