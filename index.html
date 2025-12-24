@@ -35,7 +35,7 @@
         .btn-sm.active { background: var(--accent); }
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 25px; }
         table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; }
-        th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; cursor: pointer; }
+        th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; cursor: pointer; user-select: none; }
         td { padding: 12px; border-bottom: 1px solid var(--border); }
         h3 { font-size: 0.85rem; color: var(--accent); padding: 15px; margin: 0; background: #1c2128; border-bottom: 1px solid var(--border); text-transform: uppercase; }
         .search-input { width: 100%; max-width: 300px; padding: 8px; margin: 10px 15px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
@@ -57,6 +57,7 @@
     <div class="pool-status">
         <div class="stat-item"><span class="pool-label">Pool Hashrate:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Last Block:</span> <a id="p-height-link" class="tx-link" target="_blank" style="font-weight:bold"><span id="p-height">...</span></a></div>
+        <div class="stat-item"><span class="pool-label">Since Found:</span> <span id="p-since" style="color:var(--gold); font-weight:bold">...</span></div>
         <div class="stat-item"><span class="pool-label">Pool Reward:</span> <span id="p-full-rwd" style="color:var(--ok)">... BTC</span></div>
         <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Blocks In Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
@@ -73,12 +74,14 @@
         <div class="card">
             <div class="label">Ocean $/PH (30/60/90D)</div>
             <div id="t_hashprice_ocean" class="value">...</div>
+            <div id="t_ocean_avg_block" class="sub-value" style="color:var(--accent); font-weight:bold; margin-bottom: 2px;">Pool Block: ...</div>
             <div id="t_hashprice_ocean_sub" class="sub-value" style="color:var(--ok)">...</div>
         </div>
         <div class="card">
             <div class="label">Difficulty Adjustment</div>
             <div id="t_diff" class="value">...</div>
             <div class="progress-bg"><div id="t_diff_progress" class="progress-fill"></div></div>
+            <div id="t_avg_block_time" class="sub-value" style="color:var(--gold); font-weight:bold; margin-top:8px;">Avg Block: ...</div>
             <div id="t_diff_sub" class="sub-value">...</div>
         </div>
         <div class="card price-card"><div class="label">BTC Price</div><div id="t_btc_price" class="value" style="color:var(--gold)">$...</div><div class="sub-value">Real-time Spot</div></div>
@@ -104,7 +107,7 @@
         <input type="text" id="miner-search" class="search-input" placeholder="Search miners..." onkeyup="renderWorkers()">
         <table>
             <thead>
-                <tr><th onclick="setSort('name')">Name ↕</th><th onclick="setSort('h5')">5m (TH) ↕</th><th onclick="setSort('h3')">3h (TH) ↕</th><th onclick="setSort('h24')">24h (TH) ↕</th><th>Status</th></tr>
+                <tr><th onclick="setSort('name')">Name ↕</th><th onclick="setSort('h5')">5m (TH) ↕</th><th onclick="setSort('h3')">3h (TH) ↕</th><th onclick="setSort('h24')">24h (TH) ↕</th><th onclick="setSort('statusWeight')">Status ↕</th></tr>
             </thead>
             <tbody id="worker-table"></tbody>
         </table>
@@ -138,6 +141,7 @@
     let fullHistData = [];
     let currentSort = { key: 'name', asc: true };
     let blockFinderCache = {}; 
+    let lastBlockTime = 0;
 
     const satsToBtc = (sats) => (parseFloat(sats || 0) / 100000000).toFixed(8);
 
@@ -150,6 +154,16 @@
             location.reload(); 
         } 
     }
+
+    function updateSinceTimer() {
+        if (!lastBlockTime) return;
+        const diff = Math.floor((Date.now() / 1000) - lastBlockTime);
+        const h = Math.floor(diff / 3600);
+        const m = Math.floor((diff % 3600) / 60);
+        const s = diff % 60;
+        document.getElementById('p-since').innerText = `${h > 0 ? h + 'h ' : ''}${m}m ${s}s`;
+    }
+    setInterval(updateSinceTimer, 1000);
 
     async function getFinder(height) {
         if (blockFinderCache[height]) return blockFinderCache[height];
@@ -204,10 +218,24 @@
     function renderWorkers() {
         const query = document.getElementById('miner-search').value.toLowerCase();
         let filtered = lastWorkers.filter(m => m.name.toLowerCase().includes(query));
-        const sorted = [...filtered].sort((a,b) => currentSort.asc ? (a[currentSort.key] > b[currentSort.key] ? 1 : -1) : (a[currentSort.key] < b[currentSort.key] ? 1 : -1));
+        
+        const sorted = [...filtered].sort((a, b) => {
+            let valA = a[currentSort.key];
+            let valB = b[currentSort.key];
+            if (typeof valA === 'string') {
+                return currentSort.asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            }
+            return currentSort.asc ? valA - valB : valB - valA;
+        });
+
         document.getElementById('worker-table').innerHTML = sorted.map(m => `
-            <tr><td><b>${m.name}</b></td><td>${m.h5.toFixed(2)}</td><td>${m.h3.toFixed(2)}</td><td>${m.h24.toFixed(2)}</td>
-            <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td></tr>`).join('');
+            <tr>
+                <td><b>${m.name}</b></td>
+                <td>${m.h5.toFixed(2)}</td>
+                <td>${m.h3.toFixed(2)}</td>
+                <td>${m.h24.toFixed(2)}</td>
+                <td style="color:${m.status === 'ACTIVE' ? 'var(--ok)' : 'var(--dead)'}">● ${m.status}</td>
+            </tr>`).join('');
     }
 
     async function fetchRecursiveReport(type, limit = 10) {
@@ -274,7 +302,6 @@
         document.getElementById('wallet-input-footer').value = WALLET;
         
         try {
-            // 1. Fetch Price & Network data first
             const [priceRes, hrNetRes, blocksNetRes, diffRes] = await Promise.all([
                 fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot"),
                 fetch('https://mempool.space/api/v1/mining/hashrate/24h'),
@@ -285,10 +312,8 @@
             const btcPrice = parseFloat((await priceRes.json()).data.amount);
             document.getElementById('t_btc_price').innerText = btcPrice.toLocaleString('en-US', {style:'currency', currency:'USD'});
 
-            // GLOBAL HASHPRICE CALCULATION
             const netHrData = await hrNetRes.json();
             const lastBlocks = await blocksNetRes.json();
-            
             const netPH = netHrData.currentHashrate / 1_000_000_000_000_000;
             const avgBlockRewardBTC = lastBlocks.reduce((acc, b) => acc + (b.extras.reward / 100_000_000), 0) / lastBlocks.length;
             const globalHashPrice = ((144 * avgBlockRewardBTC) / netPH) * btcPrice;
@@ -296,15 +321,16 @@
             document.getElementById('t_hashprice').innerText = `$${globalHashPrice.toFixed(2)}`;
             document.getElementById('t_hashprice_sub').innerText = `Daily Revenue: ${( (144 * avgBlockRewardBTC) / netPH ).toFixed(8)} BTC/PH`;
 
-            // DIFFICULTY
             const diffData = await diffRes.json();
             const dSign = diffData.difficultyChange > 0 ? '+' : '';
             document.getElementById('t_diff').innerText = `${dSign}${diffData.difficultyChange.toFixed(2)}%`;
             document.getElementById('t_diff_progress').style.width = diffData.progressPercent.toFixed(1) + '%';
             document.getElementById('t_diff_sub').innerText = `${diffData.progressPercent.toFixed(1)}% done • ~${(diffData.remainingBlocks * 10 / 60 / 24).toFixed(1)}d left`;
+            
+            const actualAvg = (diffData.timeAvg / 1000 / 60).toFixed(2);
+            document.getElementById('t_avg_block_time').innerText = `Avg Block: ${actualAvg}m`;
 
-            // 2. Fetch User Specific Ocean Data
-            const [hrRes, uRes, pHRRes, blocksRes, mempoolPoolRes, earnings, payouts] = await Promise.all([
+            const [hrRes, uRes, pHRRes, blocksRes, mPoolBlocksRes, earnings, payouts] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`)),
@@ -318,15 +344,29 @@
             const u = (await uRes.json()).result || {};
             const pHR = await pHRRes.json();
             const blocksData = await blocksRes.json();
-            const mPoolBlocks = await mempoolPoolRes.json();
+            const mPoolBlocks = await mPoolBlocksRes.json();
+
+            const poolRawHash = parseFloat(pHR.result?.pool_300s || 0);
+            const poolEH = poolRawHash / 1e18;
+            const netEH = netHrData.currentHashrate / 1e18;
+            
+            // Ocean pool average block time calculation
+            if (poolEH > 0 && netEH > 0) {
+                const poolBlockTimeMinutes = (10 / (poolEH / netEH));
+                const pHours = Math.floor(poolBlockTimeMinutes / 60);
+                const pMins = Math.round(poolBlockTimeMinutes % 60);
+                document.getElementById('t_ocean_avg_block').innerText = `Pool Block: ~${pHours}h ${pMins}m`;
+            }
 
             if (mPoolBlocks && mPoolBlocks[0]) {
                 const b = mPoolBlocks[0];
+                lastBlockTime = b.timestamp;
                 document.getElementById('p-height').innerText = "#" + b.height;
                 document.getElementById('p-height-link').href = `https://mempool.space/block/${b.height}`;
                 document.getElementById('p-full-rwd').innerText = satsToBtc(b.extras?.reward) + " BTC";
                 const names = b.extras?.pool?.minerNames || [];
                 document.getElementById('p-finder').innerText = names.length > 1 ? names[1] : (names[0] || "OCEAN");
+                updateSinceTimer();
             }
 
             const poolBlocks = blocksData.result?.blocks || [];
@@ -334,7 +374,7 @@
             let k = 0, cum = 0;
             for (const b of poolBlocks) { cum += parseFloat(b.accepted_shares || 0); k++; if (cum >= sharelog) break; }
             document.getElementById('p-blocks').innerText = k;
-            document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
+            document.getElementById('p-hr').innerText = poolEH.toFixed(2) + " EH/s";
             
             const unpaid = parseFloat(u.unpaid||0);
             document.getElementById('t_unpaid').innerText = unpaid.toFixed(8);
@@ -350,8 +390,16 @@
                 const s = ws[n][0];
                 const curH = parseFloat(s.hashrate_300s);
                 t5 += curH; t3 += parseFloat(s.hashrate_10800s); t24 += parseFloat(s.hashrate_86400s);
-                if(curH > 0) activeCount++;
-                return { name: n, h5: curH/1e12, h3: s.hashrate_10800s/1e12, h24: s.hashrate_86400s/1e12, status: curH > 0 ? 'ACTIVE' : 'INACTIVE' };
+                const isActive = curH > 0;
+                if(isActive) activeCount++;
+                return { 
+                    name: n, 
+                    h5: curH/1e12, 
+                    h3: s.hashrate_10800s/1e12, 
+                    h24: s.hashrate_86400s/1e12, 
+                    status: isActive ? 'ACTIVE' : 'INACTIVE',
+                    statusWeight: isActive ? 1 : 0 
+                };
             });
             renderWorkers();
             const currentPH = (t5/1e15).toFixed(2);
