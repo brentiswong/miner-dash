@@ -231,7 +231,7 @@
     let WALLET = localStorage.getItem('ocean_wallet');
     const PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
     
-    // INTEGRATED GOOGLE WEB APP URL
+    // YOUR GOOGLE WEB APP URL
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzjKGcbtw9phsEDT2hOsDE9zOs8Diq99qf9FLLWEq0wlE75XalcWrivU0f7vva1IaQ5/exec"; 
 
     let histChart, liveChart, btcSparkline;
@@ -288,7 +288,6 @@
             const block = data.find(b => b.height == height);
             if (block) {
                 const names = block.extras?.pool?.minerNames || [];
-                // Labeled as "Ocean" if no specific miner template name is found
                 const finder = names.length > 1 ? names[1] : "Ocean";
                 blockFinderCache[height] = finder;
                 return finder;
@@ -308,7 +307,6 @@
     async function loadLiveFromLocal() {
         let history = [];
         
-        // 1. TRY GOOGLE SHEETS
         if (GOOGLE_SCRIPT_URL) {
             try {
                 const res = await fetch(`${GOOGLE_SCRIPT_URL}?wallet=${WALLET}`);
@@ -316,10 +314,9 @@
                 if (sheetData && sheetData.length > 0) {
                     history = sheetData;
                 }
-            } catch (e) { console.warn("Google Sheet unreachable, falling back to local."); }
+            } catch (e) { console.warn("Google Sheet unreachable or empty."); }
         }
 
-        // 2. FALLBACK TO LOCAL STORAGE
         if (history.length === 0) {
             const stored = JSON.parse(localStorage.getItem('live_24h_data') || '[]');
             const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
@@ -547,7 +544,14 @@
             renderEarnings(1);
             renderPayouts(1);
             
+            // 1. SAVE TO LOCAL (Backup)
             saveLiveToLocal(new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), currentPH, activeCount);
+            
+            // 2. SEND TO GOOGLE SHEET (Master History)
+            if (GOOGLE_SCRIPT_URL) {
+                fetch(`${GOOGLE_SCRIPT_URL}?wallet=${WALLET}&ph=${currentPH}&miners=${activeCount}`, { mode: 'no-cors' });
+            }
+
             loadLiveFromLocal();
         } catch (e) { console.error("Update loop error:", e); }
     }
