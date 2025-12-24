@@ -30,11 +30,6 @@
         h3 { font-size: 0.85rem; color: var(--accent); padding: 15px; margin: 0; background: #1c2128; border-bottom: 1px solid var(--border); text-transform: uppercase; }
         input { width: 340px; padding: 12px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
         button#login-btn { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        
-        /* Pulse Dot Styles */
-        .pulse-dot { height: 8px; width: 8px; background-color: var(--ok); border-radius: 50%; display: inline-block; margin-right: 8px; box-shadow: 0 0 0 rgba(63, 185, 80, 0.4); animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(63, 185, 80, 0); } 100% { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); } }
-
         .search-container { background: #1c2128; padding: 10px 15px; border-bottom: 1px solid var(--border); display: flex; align-items: center; }
         .search-input { width: 100%; max-width: 300px; padding: 8px; font-size: 0.8rem; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
         .footer-settings { margin-top: 40px; padding: 25px; background: var(--card); border-top: 1px solid var(--border); border-radius: 8px; text-align: center; }
@@ -52,10 +47,6 @@
         <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Blocks in Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
-        <div style="display:flex; align-items:center;">
-            <span class="pulse-dot"></span>
-            <div id="p-time" style="color:#8b949e">Syncing...</div>
-        </div>
     </div>
 
     <div class="grid">
@@ -115,25 +106,24 @@
 
     <div class="tables-grid">
         <div class="table-container">
-            <h3>Last 10 Earnings</h3>
+            <h3>Recent Earnings</h3>
             <table>
                 <thead>
                     <tr>
-                        <th>Date (UTC)</th>
-                        <th>Block Height</th>
-                        <th>Earned (BTC)</th>
+                        <th>Date</th>
+                        <th>Block</th>
+                        <th>Amount (BTC)</th>
                     </tr>
                 </thead>
                 <tbody id="earnings-table"></tbody>
             </table>
         </div>
-
         <div class="table-container">
-            <h3>Last 10 Payouts</h3>
+            <h3>Recent Payouts</h3>
             <table>
                 <thead>
                     <tr>
-                        <th>Date (UTC)</th>
+                        <th>Date</th>
                         <th>Amount (BTC)</th>
                         <th>TXID</th>
                     </tr>
@@ -158,9 +148,6 @@
     let fullHistData = []; 
     let lastWorkers = [];
     let currentSort = { key: 'name', asc: true };
-    
-    // Global variable to store the absolute timestamp of the block
-    let globalBlockTimestamp = 0;
 
     function login() { 
         const v = document.getElementById('wallet-input').value.trim(); 
@@ -185,33 +172,6 @@
         document.getElementById('worker-table').innerHTML = sorted.map(m => `
             <tr><td><b>${m.name}</b></td><td>${m.h5.toFixed(2)}</td><td>${m.h3.toFixed(2)}</td><td>${m.h24.toFixed(2)}</td>
             <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td></tr>`).join('');
-    }
-
-    function formatTimeAgo(secondsAgo) {
-        const s = Math.max(0, Math.floor(secondsAgo));
-        const days = Math.floor(s / 86400);
-        const hours = Math.floor((s % 86400) / 3600);
-        const minutes = Math.floor((s % 3600) / 60);
-        const seconds = Math.floor(s % 60);
-
-        let parts = [];
-        if (days > 0) parts.push(`${days}d`);
-        if (hours > 0) parts.push(`${hours}h`);
-        if (minutes > 0) parts.push(`${minutes}m`);
-        parts.push(`${seconds}s`);
-        
-        return parts.join(' ') + ' ago';
-    }
-
-    function updateTimeSince() {
-        if (globalBlockTimestamp === 0) return;
-        
-        // Simple logic: NOW - BLOCK_TIME. 
-        // This is accurate regardless of when you refresh the page.
-        const now = Date.now() / 1000;
-        const diff = now - globalBlockTimestamp;
-        
-        document.getElementById('p-time').innerText = formatTimeAgo(diff);
     }
 
     async function fetchDeepHistory() {
@@ -249,46 +209,42 @@
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const price = parseFloat((await priceRes.json()).data.amount);
 
-            // Fetch data
-            const [hrRes, uRes, poolRes, pHRRes, blocksRes] = await Promise.all([
+            const [hrRes, uRes, pHRRes, blocksRes, rewardsRes, payoutsRes] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/latest_block`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=30`))
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=30`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_rewards/${WALLET}?page=0&page_size=10`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_payouts/${WALLET}?page=0&page_size=10`))
             ]);
 
             const hrData = await hrRes.json();
             const u = (await uRes.json()).result || {};
             const pHR = await pHRRes.json();
             const blocksData = await blocksRes.json();
+            const rewardsData = await rewardsRes.json();
+            const payoutsData = await payoutsRes.json();
 
-            // CRITICAL FIX: Pull block data from the LIST, not the latest_block endpoint
-            // The list (blocksData) is guaranteed to have the 'ts' timestamp.
+            // Pool Stats
             const block = blocksData.result?.blocks?.[0] || {};
-            
             document.getElementById('p-height').innerText = "#" + (block.height || "...");
             document.getElementById('p-finder').innerText = block.username ? (block.username.substring(0,8) + (block.workername ? "."+block.workername : "")) : "...";
             document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
             
-            if (block.ts) { 
-                // Store the absolute timestamp of the block
-                globalBlockTimestamp = new Date(block.ts).getTime() / 1000;
-            }
-            updateTimeSince();
-
             const sharelog = parseFloat(block.sharelog_window || 0);
             let k = 0, cum = 0;
             const blocks = (blocksData.result?.blocks || []).sort((a, b) => b.height - a.height);
             for (const b of blocks) { cum += parseFloat(b.accepted_shares || 0); k++; if (cum >= sharelog) break; }
             document.getElementById('p-blocks').innerText = k;
 
+            // Totals
             const unpaid = parseFloat(u.unpaid||0);
             document.getElementById('t_unpaid').innerText = unpaid.toFixed(8);
             document.getElementById('t_usd').innerText = "$" + (unpaid * price).toFixed(2);
             document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block||0).toFixed(8);
             document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides||0)/1e9).toFixed(2) + "G";
 
+            // Miners
             let t5=0, t3=0, t24=0, active=0;
             const ws = hrData.result?.workers || hrData.workers || {};
             lastWorkers = Object.keys(ws).map(n => {
@@ -302,6 +258,18 @@
             document.getElementById('t_hr').innerText = (t5/1e15).toFixed(2) + " PH/s";
             document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
 
+            // Table Rendering
+            const earnList = rewardsData.result?.rewards || [];
+            document.getElementById('earnings-table').innerHTML = earnList.slice(0,10).map(e => `
+                <tr><td>${new Date(e.ts).toLocaleDateString()}</td><td>#${e.block_height}</td><td>${parseFloat(e.amount).toFixed(8)}</td></tr>
+            `).join('') || '<tr><td colspan="3">No recent earnings found</td></tr>';
+
+            const payList = payoutsData.result?.payouts || [];
+            document.getElementById('payouts-table').innerHTML = payList.slice(0,10).map(p => `
+                <tr><td>${new Date(p.ts).toLocaleDateString()}</td><td>${parseFloat(p.amount).toFixed(8)}</td><td><a href="https://mempool.space/tx/${p.txid}" target="_blank" style="color:var(--accent)">View</a></td></tr>
+            `).join('') || '<tr><td colspan="3">No recent payouts found</td></tr>';
+
+            // Live Chart
             const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
             liveChart.data.labels.push(time);
             liveChart.data.datasets[0].data.push((t5/1e15).toFixed(2));
@@ -326,7 +294,7 @@
             data: { labels: s.l, datasets: [{ label: 'PH/s', data: s.h, borderColor: '#58a6ff', tension: 0.2, pointRadius: 0 }, { label: 'Miners', data: s.w, borderColor: '#ff7b72', yAxisID: 'y1', pointRadius: 0, borderDash: [5,5] }] },
             options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' } }, y1: { position: 'right', grid: { display: false }, ticks: { precision: 0 } } } }
         });
-        await fetchDeepHistory(); update(); setInterval(update, 60000); setInterval(updateTimeSince, 1000);
+        await fetchDeepHistory(); update(); setInterval(update, 60000);
     }
     if (WALLET) init();
 </script>
