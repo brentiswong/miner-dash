@@ -15,8 +15,6 @@
         
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 20px; }
         .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; display: flex; flex-direction: column; }
-        
-        /* BTC Price to the far right */
         .price-card { order: 4; }
         
         .label { font-size: 0.65rem; color: #8b949e; text-transform: uppercase; font-weight: 700; }
@@ -92,7 +90,15 @@
     </div>
 
     <div class="tables-grid">
-        <div class="table-container"><h3>Recent Earnings</h3><table><thead><tr><th>Date</th><th>Block</th><th>Net BTC</th></tr></thead><tbody id="earnings-table"></tbody></table></div>
+        <div class="table-container">
+            <h3>Recent Earnings</h3>
+            <table>
+                <thead>
+                    <tr><th>Date</th><th>Block</th><th>Finder</th><th>Net BTC</th></tr>
+                </thead>
+                <tbody id="earnings-table"></tbody>
+            </table>
+        </div>
         <div class="table-container"><h3>Recent Payouts</h3><table><thead><tr><th>Date</th><th>Amount</th><th>TXID</th></tr></thead><tbody id="payouts-table"></tbody></table></div>
     </div>
 </div>
@@ -110,6 +116,7 @@
     let lastWorkers = [];
     let fullHistData = [];
     let currentSort = { key: 'name', asc: true };
+    let blockFinderCache = {}; // Cache to avoid redundant network calls
 
     const satsToBtc = (sats) => (parseFloat(sats || 0) / 100000000).toFixed(8);
 
@@ -121,6 +128,22 @@
             localStorage.removeItem('live_24h_data'); 
             location.reload(); 
         } 
+    }
+
+    async function getFinder(height) {
+        if (blockFinderCache[height]) return blockFinderCache[height];
+        try {
+            const res = await fetch(`https://mempool.space/api/v1/mining/pool/ocean/blocks`);
+            const data = await res.json();
+            const block = data.find(b => b.height == height);
+            if (block) {
+                const names = block.extras?.pool?.minerNames || [];
+                const finder = names.length > 1 ? names[1] : (names[0] || "OCEAN");
+                blockFinderCache[height] = finder;
+                return finder;
+            }
+        } catch(e) {}
+        return "OCEAN";
     }
 
     function saveLiveToLocal(label, ph, miners) {
@@ -241,7 +264,6 @@
             let k = 0, cum = 0;
             for (const b of poolBlocks) { cum += parseFloat(b.accepted_shares || 0); k++; if (cum >= sharelog) break; }
             document.getElementById('p-blocks').innerText = k;
-
             document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
             
             const unpaid = parseFloat(u.unpaid||0);
@@ -266,7 +288,19 @@
             document.getElementById('t_hr').innerText = currentPH + " PH/s";
             document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(3)} / ${(t24/1e15).toFixed(3)} PH/s`;
 
-            document.getElementById('earnings-table').innerHTML = earnings.map(e => `<tr><td>${e.TimeUTC.substring(5,16)}</td><td>#${e.Blockheight}</td><td>${satsToBtc(e.NetUserRwd)}</td></tr>`).join('');
+            // Updated Earnings table with Finder logic
+            const earningsHTML = await Promise.all(earnings.map(async e => {
+                const finder = await getFinder(e.Blockheight);
+                return `
+                <tr>
+                    <td>${e.TimeUTC.substring(5,16)}</td>
+                    <td><a class="tx-link" href="https://mempool.space/block/${e.Blockheight}" target="_blank">#${e.Blockheight}</a></td>
+                    <td style="color:var(--accent)">${finder}</td>
+                    <td>${satsToBtc(e.NetUserRwd)}</td>
+                </tr>`;
+            }));
+            document.getElementById('earnings-table').innerHTML = earningsHTML.join('');
+            
             document.getElementById('payouts-table').innerHTML = payouts.map(p => `<tr><td>${p.TimeUTC.substring(5,16)}</td><td>${satsToBtc(p.PayoutAmt)}</td><td><a class="tx-link" href="https://mempool.space/tx/${p.TXID}" target="_blank">${p.TXID.substring(0,8)}</a></td></tr>`).join('');
 
             const now = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
