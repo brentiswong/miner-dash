@@ -69,8 +69,12 @@
     </div>
 
     <div class="grid-4">
-        <div class="card"><div class="label">Global $/PH (24H)</div><div id="t_hashprice" class="value">...</div><div class="sub-value">Network Average</div></div>
-        <div class="card"><div class="label">Ocean $/PH (30D)</div><div id="t_hashprice_ocean" class="value">...</div><div class="sub-value" style="color:var(--ok)">Actual Performance</div></div>
+        <div class="card"><div class="label">Global $/PH (24H)</div><div id="t_hashprice" class="value">...</div><div id="t_hashprice_sub" class="sub-value">Network Average</div></div>
+        <div class="card">
+            <div class="label">Ocean $/PH (30/60/90D)</div>
+            <div id="t_hashprice_ocean" class="value">...</div>
+            <div id="t_hashprice_ocean_sub" class="sub-value" style="color:var(--ok)">...</div>
+        </div>
         <div class="card">
             <div class="label">Difficulty Adjustment</div>
             <div id="t_diff" class="value">...</div>
@@ -191,7 +195,6 @@
 
     function filterHist(days) {
         document.querySelectorAll('.btn-sm').forEach(b => b.classList.remove('active'));
-        if (event && event.target.tagName === 'BUTTON') event.target.classList.add('active');
         const filtered = days === 0 ? fullHistData : fullHistData.slice(-days);
         histChart.data.labels = filtered.map(d => d.date);
         histChart.data.datasets[0].data = filtered.map(d => (parseFloat(d.hashrate_avg_24hr_thsec)/1000).toFixed(2));
@@ -240,22 +243,27 @@
         }
         fullHistData = results.filter(d => parseFloat(d.hashrate_avg_24hr_thsec) > 0).sort((a,b) => new Date(a.date) - new Date(b.date));
         
-        // Ocean 30d Hashprice Calculation
         if(fullHistData.length > 0) {
-            const last30 = fullHistData.slice(-30);
-            let totalPhDays = 0;
-            last30.forEach(day => { totalPhDays += (parseFloat(day.hashrate_avg_24hr_thsec) / 1000); });
+            const calcPH = (days) => {
+                const slice = fullHistData.slice(-days);
+                if (slice.length === 0) return 0;
+                let total = 0;
+                slice.forEach(d => total += (parseFloat(d.hashrate_avg_24hr_thsec)/1000));
+                return total / slice.length;
+            };
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const price = parseFloat((await priceRes.json()).data.amount);
-            const earnings30 = await fetchRecursiveReport('earnings', 500);
-            const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-            const btcSum = earnings30.reduce((acc, e) => {
-                return (new Date(e.TimeUTC) > thirtyDaysAgo) ? acc + parseFloat(e.NetUserRwd) : acc;
-            }, 0) / 100000000;
-            if(totalPhDays > 0) {
-                const oceanHashprice = ((btcSum / (totalPhDays/last30.length)) / last30.length) * price;
-                document.getElementById('t_hashprice_ocean').innerText = `$${oceanHashprice.toFixed(2)}`;
-            }
+            const earningsAll = await fetchRecursiveReport('earnings', 1000);
+            const getBtcSum = (days) => {
+                const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+                return earningsAll.reduce((acc, e) => (new Date(e.TimeUTC) > cutoff ? acc + parseFloat(e.NetUserRwd) : acc), 0) / 100000000;
+            };
+            const ph30 = calcPH(30), btc30 = getBtcSum(30);
+            const ph60 = calcPH(60), btc60 = getBtcSum(60);
+            const ph90 = calcPH(90), btc90 = getBtcSum(90);
+            
+            if(ph30 > 0) document.getElementById('t_hashprice_ocean').innerText = `$${(((btc30 / ph30) / 30) * price).toFixed(2)}`;
+            document.getElementById('t_hashprice_ocean_sub').innerText = `60d: $${ph60 > 0 ? (((btc60/ph60)/60)*price).toFixed(2) : '0'} | 90d: $${ph90 > 0 ? (((btc90/ph90)/90)*price).toFixed(2) : '0'}`;
         }
         filterHist(0);
     }
@@ -264,41 +272,56 @@
         if (!WALLET) return;
         document.getElementById('auth-overlay').style.display = 'none';
         document.getElementById('wallet-input-footer').value = WALLET;
+        
         try {
-            const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
-            const price = parseFloat((await priceRes.json()).data.amount);
-            document.getElementById('t_btc_price').innerText = price.toLocaleString('en-US', {style:'currency', currency:'USD'});
+            // 1. Fetch Price & Network data first
+            const [priceRes, hrNetRes, blocksNetRes, diffRes] = await Promise.all([
+                fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot"),
+                fetch('https://mempool.space/api/v1/mining/hashrate/24h'),
+                fetch('https://mempool.space/api/v1/blocks'),
+                fetch(`https://mempool.space/api/v1/difficulty-adjustment`)
+            ]);
 
-            const [hrRes, uRes, pHRRes, blocksRes, mempoolRes, earnings, payouts, diffRes] = await Promise.all([
+            const btcPrice = parseFloat((await priceRes.json()).data.amount);
+            document.getElementById('t_btc_price').innerText = btcPrice.toLocaleString('en-US', {style:'currency', currency:'USD'});
+
+            // GLOBAL HASHPRICE CALCULATION
+            const netHrData = await hrNetRes.json();
+            const lastBlocks = await blocksNetRes.json();
+            
+            const netPH = netHrData.currentHashrate / 1_000_000_000_000_000;
+            const avgBlockRewardBTC = lastBlocks.reduce((acc, b) => acc + (b.extras.reward / 100_000_000), 0) / lastBlocks.length;
+            const globalHashPrice = ((144 * avgBlockRewardBTC) / netPH) * btcPrice;
+            
+            document.getElementById('t_hashprice').innerText = `$${globalHashPrice.toFixed(2)}`;
+            document.getElementById('t_hashprice_sub').innerText = `Daily Revenue: ${( (144 * avgBlockRewardBTC) / netPH ).toFixed(8)} BTC/PH`;
+
+            // DIFFICULTY
+            const diffData = await diffRes.json();
+            const dSign = diffData.difficultyChange > 0 ? '+' : '';
+            document.getElementById('t_diff').innerText = `${dSign}${diffData.difficultyChange.toFixed(2)}%`;
+            document.getElementById('t_diff_progress').style.width = diffData.progressPercent.toFixed(1) + '%';
+            document.getElementById('t_diff_sub').innerText = `${diffData.progressPercent.toFixed(1)}% done • ~${(diffData.remainingBlocks * 10 / 60 / 24).toFixed(1)}d left`;
+
+            // 2. Fetch User Specific Ocean Data
+            const [hrRes, uRes, pHRRes, blocksRes, mempoolPoolRes, earnings, payouts] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=30`)),
                 fetch(`https://mempool.space/api/v1/mining/pool/ocean/blocks`),
                 fetchRecursiveReport('earnings'),
-                fetchRecursiveReport('payouts'),
-                fetch(`https://mempool.space/api/v1/difficulty-adjustment`)
+                fetchRecursiveReport('payouts')
             ]);
 
             const hrData = await hrRes.json();
             const u = (await uRes.json()).result || {};
             const pHR = await pHRRes.json();
             const blocksData = await blocksRes.json();
-            const mBlocks = await mempoolRes.json();
-            const diffData = await diffRes.json();
+            const mPoolBlocks = await mempoolPoolRes.json();
 
-            // Difficulty adjustment
-            const dSign = diffData.difficultyChange > 0 ? '+' : '';
-            document.getElementById('t_diff').innerText = `${dSign}${diffData.difficultyChange.toFixed(2)}%`;
-            document.getElementById('t_diff_progress').style.width = diffData.progressPercent.toFixed(1) + '%';
-            document.getElementById('t_diff_sub').innerText = `${diffData.progressPercent.toFixed(1)}% done • ~${(diffData.remainingBlocks * 10 / 60 / 24).toFixed(1)}d left`;
-
-            // Global $/PH (Real calculation based on daily network rewards)
-            const globalHP = (diffData.nextRetargetHeight) ? 38.50 : 36.20; // Simulated dynamic value
-            document.getElementById('t_hashprice').innerText = `$${globalHP.toFixed(2)}`;
-
-            if (mBlocks && mBlocks[0]) {
-                const b = mBlocks[0];
+            if (mPoolBlocks && mPoolBlocks[0]) {
+                const b = mPoolBlocks[0];
                 document.getElementById('p-height').innerText = "#" + b.height;
                 document.getElementById('p-height-link').href = `https://mempool.space/block/${b.height}`;
                 document.getElementById('p-full-rwd').innerText = satsToBtc(b.extras?.reward) + " BTC";
@@ -315,11 +338,11 @@
             
             const unpaid = parseFloat(u.unpaid||0);
             document.getElementById('t_unpaid').innerText = unpaid.toFixed(8);
-            document.getElementById('t_usd').innerText = "$" + (unpaid * price).toFixed(2);
+            document.getElementById('t_usd').innerText = "$" + (unpaid * btcPrice).toFixed(2);
             
             const est = parseFloat(u.estimated_earn_next_block||0);
             document.getElementById('t_est').innerText = est.toFixed(8);
-            document.getElementById('t_est_usd').innerText = "$" + (est * price).toFixed(2);
+            document.getElementById('t_est_usd').innerText = "$" + (est * btcPrice).toFixed(2);
 
             let t5=0, t3=0, t24=0, activeCount=0;
             const ws = hrData.result?.workers || {};
@@ -347,9 +370,10 @@
             liveChart.data.datasets[0].data.push(currentPH);
             liveChart.data.datasets[1].data.push(activeCount);
             saveLiveToLocal(now, currentPH, activeCount);
-            if(liveChart.data.labels.length > 1440) { liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); liveChart.data.datasets[1].data.shift(); }
+            if(liveChart.data.labels.length > 60) { liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); liveChart.data.datasets[1].data.shift(); }
             liveChart.update();
-        } catch (e) {}
+
+        } catch (e) { console.error("Update loop error:", e); }
     }
 
     function init() {
