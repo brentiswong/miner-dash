@@ -45,8 +45,8 @@
     <div class="pool-status">
         <div class="stat-item"><span class="pool-label">Pool HR:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
-        <div class="stat-item"><span class="pool-label">Block Reward:</span> <span id="p-full-rwd" style="color:var(--ok)">... BTC</span></div>
-        <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Pool Reward:</span> <span id="p-full-rwd" style="color:var(--ok)">... BTC</span></div>
+        <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent); font-family: monospace;">...</span></div>
         <div class="stat-item"><span class="pool-label">Blocks in Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
     </div>
 
@@ -215,13 +215,14 @@
             const now = new Date();
             const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-            const [hrRes, uRes, pHRRes, blocksRes, rewardsRes, payoutsRes] = await Promise.all([
+            const [hrRes, uRes, pHRRes, blocksRes, rewardsRes, payoutsRes, mempoolRes] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=30`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_earnings_report/${WALLET}/${yearMonth}`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_payout_report/${WALLET}/${yearMonth}`))
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_payout_report/${WALLET}/${yearMonth}`)),
+                fetch(`https://mempool.space/api/v1/mining/pool/ocean/blocks`)
             ]);
 
             const hrData = await hrRes.json();
@@ -230,23 +231,31 @@
             const blocksData = await blocksRes.json();
             const rewardsData = await rewardsRes.json();
             const payoutsData = await payoutsRes.json();
+            const mempoolBlocks = await mempoolRes.json();
 
-            // Pool Stats & Full Block Reward
+            // Mempool.space Pool Stats
+            if (mempoolBlocks && mempoolBlocks.length > 0) {
+                const lastMempoolBlock = mempoolBlocks[0];
+                document.getElementById('p-height').innerText = "#" + lastMempoolBlock.height;
+                document.getElementById('p-full-rwd').innerText = satsToBtc(lastMempoolBlock.reward) + " BTC";
+                
+                // Finder Logic: Readable coinbase signature
+                const rawFinder = lastMempoolBlock.coinbaseSignatureAscii || "";
+                const cleanFinder = rawFinder.replace(/[^\x20-\x7E]/g, '').trim();
+                document.getElementById('p-finder').innerText = cleanFinder || "Ocean Node";
+            }
+
+            // Pool Window logic (using Ocean API as primary for window stats)
             const poolBlocks = blocksData.result?.blocks || [];
             const block = poolBlocks[0] || {};
-            document.getElementById('p-height').innerText = "#" + (block.height || "...");
-            document.getElementById('p-finder').innerText = block.username ? (block.username.substring(0,8) + (block.workername ? "."+block.workername : "")) : "...";
-            document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
-            
-            // Full Reward of the pool's last block (sats to BTC)
-            const fullRewardSats = parseFloat(block.reward || 0);
-            document.getElementById('p-full-rwd').innerText = satsToBtc(fullRewardSats) + " BTC";
-            
             const sharelog = parseFloat(block.sharelog_window || 0);
             let k = 0, cum = 0;
             const sortedBlocks = [...poolBlocks].sort((a, b) => b.height - a.height);
             for (const b of sortedBlocks) { cum += parseFloat(b.accepted_shares || 0); k++; if (cum >= sharelog) break; }
             document.getElementById('p-blocks').innerText = k;
+
+            // Global Hashrate
+            document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
 
             // Totals
             const unpaid = parseFloat(u.unpaid||0);
