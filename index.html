@@ -17,223 +17,76 @@
         .label { font-size: 0.65rem; color: #8b949e; text-transform: uppercase; font-weight: 700; }
         .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; }
         .sub-value { font-size: 0.8rem; margin-top: 4px; opacity: 0.8; }
-        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-        @media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
-        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 320px; position: relative; }
-        .controls { position: absolute; top: 10px; right: 15px; z-index: 10; display: flex; gap: 5px; }
-        .btn-sm { background: #30363d; color: white; border: none; padding: 4px 8px; border-radius: 3px; font-size: 0.65rem; cursor: pointer; }
-        .btn-sm.active { background: var(--accent); }
+        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 320px; position: relative; margin-bottom: 20px; }
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 25px; }
         table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; }
-        th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; cursor: pointer; }
+        th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; }
         td { padding: 12px; border-bottom: 1px solid var(--border); }
         h3 { font-size: 0.85rem; color: var(--accent); padding: 15px; margin: 0; background: #1c2128; border-bottom: 1px solid var(--border); text-transform: uppercase; }
         input { width: 340px; padding: 12px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
-        button#login-btn { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .search-container { background: #1c2128; padding: 10px 15px; border-bottom: 1px solid var(--border); display: flex; align-items: center; }
-        .search-input { width: 100%; max-width: 300px; padding: 8px; font-size: 0.8rem; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
-        .footer-settings { margin-top: 40px; padding: 25px; background: var(--card); border-top: 1px solid var(--border); border-radius: 8px; text-align: center; }
-        .tables-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
+        .tables-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
         @media (max-width: 900px) { .tables-grid { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
 
-<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH Dashboard</h2><input type="text" id="wallet-input" placeholder="Enter BTC Address"><br><br><button id="login-btn" onclick="login()">Sync Dashboard</button></div></div>
+<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH</h2><input type="text" id="wallet-input" placeholder="BTC Address"><br><br><button onclick="login()" style="background:var(--accent);color:white;padding:10px 20px;border:none;border-radius:4px;cursor:pointer">Sync</button></div></div>
 
 <div class="container">
     <div class="pool-status">
         <div class="stat-item"><span class="pool-label">Pool HR:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Pool Reward:</span> <span id="p-full-rwd" style="color:var(--ok)">... BTC</span></div>
-        <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent); font-family: monospace;">...</span></div>
-        <div class="stat-item"><span class="pool-label">Blocks in Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
     </div>
 
     <div class="grid">
-        <div class="card">
-            <div class="label">Hashrate (5m / 3h / 24h)</div>
-            <div id="t_hr" class="value">0.00 PH/s</div>
-            <div id="t_hr_avg" class="sub-value" style="color:var(--accent)">0.00 / 0.00 PH/s</div>
-        </div>
-        <div class="card">
-            <div class="label">Unpaid (BTC)</div>
-            <div id="t_unpaid" class="value">0.00000000</div>
-            <div id="t_usd" class="sub-value" style="color:var(--ok)">$0.00 USD</div>
-        </div>
-        <div class="card">
-            <div class="label">Est. Next Block / TIDES</div>
-            <div id="t_est" class="value">0.00000000</div>
-            <div id="t_shares" class="sub-value">0.00G Shares</div>
-        </div>
+        <div class="card"><div class="label">Hashrate</div><div id="t_hr" class="value">0.00 PH/s</div><div id="t_hr_avg" class="sub-value">...</div></div>
+        <div class="card"><div class="label">Unpaid</div><div id="t_unpaid" class="value">0.00000000</div><div id="t_usd" class="sub-value">...</div></div>
+        <div class="card"><div class="label">Est. Next</div><div id="t_est" class="value">0.00000000</div><div id="t_shares" class="sub-value">...</div></div>
     </div>
 
-    <div class="chart-grid">
-        <div class="chart-box">
-            <div class="controls">
-                <button class="btn-sm" onclick="filterHist(7)">1W</button>
-                <button class="btn-sm" onclick="filterHist(30)">1M</button>
-                <button class="btn-sm" onclick="filterHist(180)">6M</button>
-                <button class="btn-sm" onclick="filterHist(365)">1Y</button>
-                <button class="btn-sm active" onclick="filterHist(0)">ALL</button>
-            </div>
-            <h3 style="background:transparent; padding:0">Historical PH/s</h3>
-            <canvas id="histChart"></canvas>
-        </div>
-        <div class="chart-box">
-            <h3 style="background:transparent; padding:0">Live 24H</h3>
-            <canvas id="liveChart"></canvas>
-        </div>
-    </div>
-
-    <div class="table-container">
-        <h3>Miner Status</h3>
-        <div class="search-container">
-            <input type="text" id="miner-search" class="search-input" placeholder="Search miner name..." onkeyup="renderWorkers()">
-        </div>
-        <table>
-            <thead>
-                <tr>
-                    <th onclick="setSort('name')">Name ↕</th>
-                    <th onclick="setSort('h5')">5m (TH/s) ↕</th>
-                    <th onclick="setSort('h3')">3h (TH/s) ↕</th>
-                    <th onclick="setSort('h24')">24h (TH/s) ↕</th>
-                    <th onclick="setSort('status')">Status ↕</th>
-                </tr>
-            </thead>
-            <tbody id="worker-table"></tbody>
-        </table>
-    </div>
+    <div class="chart-box"><canvas id="liveChart"></canvas></div>
 
     <div class="tables-grid">
-        <div class="table-container">
-            <h3>Recent Earnings</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date (UTC)</th>
-                        <th>Block</th>
-                        <th>Net BTC</th>
-                    </tr>
-                </thead>
-                <tbody id="earnings-table"></tbody>
-            </table>
-        </div>
-        <div class="table-container">
-            <h3>Recent Payouts</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date (UTC)</th>
-                        <th>Amount (BTC)</th>
-                        <th>TXID</th>
-                    </tr>
-                </thead>
-                <tbody id="payouts-table"></tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="footer-settings">
-        <div class="pool-label" style="margin-bottom: 10px;">Switch Wallet Address</div>
-        <input type="text" id="footer-wallet-input" style="width: 100%; max-width: 400px; margin-bottom: 10px;" placeholder="Enter new BTC address">
-        <br>
-        <button class="btn-sm" style="padding: 10px 20px; font-size: 0.75rem;" onclick="updateWalletFooter()">Update Address</button>
+        <div class="table-container"><h3>Earnings</h3><table><thead><tr><th>Date</th><th>Block</th><th>BTC</th></tr></thead><tbody id="earnings-table"></tbody></table></div>
+        <div class="table-container"><h3>Payouts</h3><table><thead><tr><th>Date</th><th>BTC</th><th>TX</th></tr></thead><tbody id="payouts-table"></tbody></table></div>
     </div>
 </div>
 
 <script>
     let WALLET = localStorage.getItem('ocean_wallet');
     const PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
-    let histChart, liveChart;
-    let fullHistData = []; 
-    let lastWorkers = [];
-    let currentSort = { key: 'name', asc: true };
-
+    let liveChart;
     const satsToBtc = (sats) => (parseFloat(sats || 0) / 100000000).toFixed(8);
 
-    function login() { 
-        const v = document.getElementById('wallet-input').value.trim(); 
-        if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } 
-    }
-
-    function updateWalletFooter() {
-        const v = document.getElementById('footer-wallet-input').value.trim();
-        if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); }
-    }
-
-    function setSort(k) {
-        if (currentSort.key === k) currentSort.asc = !currentSort.asc;
-        else { currentSort.key = k; currentSort.asc = true; }
-        renderWorkers();
-    }
-
-    function renderWorkers() {
-        const query = document.getElementById('miner-search').value.toLowerCase();
-        let filtered = lastWorkers.filter(m => m.name.toLowerCase().includes(query));
-        const sorted = [...filtered].sort((a,b) => currentSort.asc ? (a[currentSort.key] > b[currentSort.key] ? 1 : -1) : (a[currentSort.key] < b[currentSort.key] ? 1 : -1));
-        document.getElementById('worker-table').innerHTML = sorted.map(m => `
-            <tr><td><b>${m.name}</b></td><td>${m.h5.toFixed(2)}</td><td>${m.h3.toFixed(2)}</td><td>${m.h24.toFixed(2)}</td>
-            <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td></tr>`).join('');
-    }
+    function login() { const v = document.getElementById('wallet-input').value.trim(); if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } }
 
     async function fetchRecursiveReport(type, limit = 10) {
         let results = [];
         let date = new Date();
-        for (let i = 0; i < 6; i++) { // Look back 6 months
+        for (let i = 0; i < 6; i++) {
             const y = date.getFullYear();
             const m = String(date.getMonth() + 1).padStart(2, '0');
-            const endpoint = type === 'earnings' ? 'monthly_earnings_report' : 'monthly_payout_report';
-            const url = `https://api.ocean.xyz/v1/${endpoint}/${WALLET}/${y}-${m}`;
+            const ep = type === 'earnings' ? 'monthly_earnings_report' : 'monthly_payout_report';
             try {
-                const res = await fetch(PROXY + encodeURIComponent(url));
+                const res = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/${ep}/${WALLET}/${y}-${m}`));
                 const data = await res.json();
                 const report = data.result?.report || [];
-                // For earnings, filter out non-block rows
                 const filtered = type === 'earnings' ? report.filter(r => r.Blockheight !== "-1") : report;
                 results.push(...filtered);
                 if (results.length >= limit) break;
-            } catch (e) { console.error("Error fetching report month", e); }
+            } catch (e) {}
             date.setMonth(date.getMonth() - 1);
         }
         return results.sort((a,b) => new Date(b.TimeUTC) - new Date(a.TimeUTC)).slice(0, limit);
-    }
-
-    async function fetchDeepHistory() {
-        let date = new Date();
-        const results = [];
-        for(let i=0; i<12; i++) {
-            const y = date.getFullYear();
-            const m = String(date.getMonth() + 1).padStart(2, '0');
-            const url = `https://api.ocean.xyz/v1/monthly_user_report/${WALLET}/${y}-${m}`;
-            try {
-                const res = await fetch(PROXY + encodeURIComponent(url));
-                const data = await res.json();
-                if(data.result?.report) results.push(...data.result.report);
-                if(data.result?.report?.length === 0 && i > 3) break;
-            } catch(e) {}
-            date.setMonth(date.getMonth() - 1);
-        }
-        fullHistData = results.filter(d => parseFloat(d.hashrate_avg_24hr_thsec) > 0)
-                              .sort((a,b) => new Date(a.date) - new Date(b.date));
-        filterHist(0);
-    }
-
-    function filterHist(days) {
-        document.querySelectorAll('.btn-sm').forEach(b => b.classList.remove('active'));
-        const filtered = days === 0 ? fullHistData : fullHistData.slice(-days);
-        histChart.data.labels = filtered.map(d => d.date);
-        histChart.data.datasets[0].data = filtered.map(d => (parseFloat(d.hashrate_avg_24hr_thsec)/1000).toFixed(2));
-        histChart.update();
     }
 
     async function update() {
         if (!WALLET) return;
         document.getElementById('auth-overlay').style.display = 'none';
         try {
-            const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
-            const price = parseFloat((await priceRes.json()).data.amount);
-
             const [hrRes, uRes, pHRRes, blocksRes, mempoolRes, earnings, payouts] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
@@ -248,88 +101,52 @@
             const u = (await uRes.json()).result || {};
             const pHR = await pHRRes.json();
             const blocksData = await blocksRes.json();
-            const mempoolBlocks = await mempoolRes.json();
+            const mBlocks = await mempoolRes.json();
 
-            // Mempool.space Logic
-            if (mempoolBlocks && mempoolBlocks.length > 0) {
-                const lastM = mempoolBlocks[0];
-                document.getElementById('p-height').innerText = "#" + lastM.height;
-                document.getElementById('p-full-rwd').innerText = satsToBtc(lastM.reward) + " BTC";
+            // Mempool Structure Logic
+            if (mBlocks && mBlocks.length > 0) {
+                const b = mBlocks[0];
+                document.getElementById('p-height').innerText = "#" + b.height;
+                // Use reward from extras
+                document.getElementById('p-full-rwd').innerText = satsToBtc(b.extras?.reward) + " BTC";
                 
-                // Clean Finder
-                const cleanFinder = (lastM.coinbaseSignatureAscii || "").replace(/[^\x20-\x7E]/g, '').trim();
-                document.getElementById('p-finder').innerText = cleanFinder || "Ocean Node";
+                // Use 2nd half of minerNames if available
+                const names = b.extras?.pool?.minerNames || [];
+                document.getElementById('p-finder').innerText = names.length > 1 ? names[1] : (names[0] || "OCEAN");
             }
 
-            // Pool Window (Ocean API)
             const poolBlocks = blocksData.result?.blocks || [];
             const block = poolBlocks[0] || {};
             const sharelog = parseFloat(block.sharelog_window || 0);
             let k = 0, cum = 0;
-            const sortedBlocks = [...poolBlocks].sort((a, b) => b.height - a.height);
-            for (const b of sortedBlocks) { cum += parseFloat(b.accepted_shares || 0); k++; if (cum >= sharelog) break; }
+            for (const b of poolBlocks) { cum += parseFloat(b.accepted_shares || 0); k++; if (cum >= sharelog) break; }
             document.getElementById('p-blocks').innerText = k;
 
             document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
-
-            // User Totals
-            const unpaid = parseFloat(u.unpaid||0);
-            document.getElementById('t_unpaid').innerText = unpaid.toFixed(8);
-            document.getElementById('t_usd').innerText = "$" + (unpaid * price).toFixed(2);
+            document.getElementById('t_unpaid').innerText = parseFloat(u.unpaid||0).toFixed(8);
             document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block||0).toFixed(8);
-            document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides||0)/1e9).toFixed(2) + "G";
 
             // Miners
-            let t5=0, t3=0, t24=0, active=0;
-            const ws = hrData.result?.workers || hrData.workers || {};
-            lastWorkers = Object.keys(ws).map(n => {
-                const s = Array.isArray(ws[n]) ? ws[n][0] : ws[n];
-                const h5 = parseFloat(s.hashrate_300s||0);
-                t5 += h5; t3 += parseFloat(s.hashrate_10800s||0); t24 += parseFloat(s.hashrate_86400s||0);
-                if(h5 > 0) active++;
-                return { name: n, h5: h5/1e12, h3: (s.hashrate_10800s||0)/1e12, h24: (s.hashrate_86400s||0)/1e12, status: h5 > 0 ? 'ACTIVE' : 'INACTIVE' };
-            });
-            renderWorkers();
+            let t5=0, active=0;
+            const ws = hrData.result?.workers || {};
+            Object.keys(ws).forEach(n => { if(parseFloat(ws[n][0].hashrate_300s) > 0) { t5 += parseFloat(ws[n][0].hashrate_300s); active++; } });
             document.getElementById('t_hr').innerText = (t5/1e15).toFixed(2) + " PH/s";
-            document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
 
-            // Tables
-            document.getElementById('earnings-table').innerHTML = earnings.map(e => `
-                <tr><td>${e.TimeUTC.replace('T', ' ').substring(0,16)}</td><td>#${e.Blockheight}</td><td>${satsToBtc(e.NetUserRwd)}</td></tr>
-            `).join('') || '<tr><td colspan="3">No earnings found</td></tr>';
+            // Table Rendering
+            document.getElementById('earnings-table').innerHTML = earnings.map(e => `<tr><td>${e.TimeUTC.substring(5,16)}</td><td>${e.Blockheight}</td><td>${satsToBtc(e.NetUserRwd)}</td></tr>`).join('');
+            document.getElementById('payouts-table').innerHTML = payouts.map(p => `<tr><td>${p.TimeUTC.substring(5,16)}</td><td>${satsToBtc(p.PayoutAmt)}</td><td>${p.TXID.substring(0,6)}</td></tr>`).join('');
 
-            document.getElementById('payouts-table').innerHTML = payouts.map(p => `
-                <tr><td>${p.TimeUTC.replace('T', ' ').substring(0,16)}</td><td>${satsToBtc(p.PayoutAmt)}</td><td><a href="https://mempool.space/tx/${p.TXID}" target="_blank" style="color:var(--accent)">${p.TXID.substring(0,8)}...</a></td></tr>
-            `).join('') || '<tr><td colspan="3">No payouts found</td></tr>';
-
-            // Live Chart
             const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
             liveChart.data.labels.push(time);
             liveChart.data.datasets[0].data.push((t5/1e15).toFixed(2));
-            liveChart.data.datasets[1].data.push(active);
-            if(liveChart.data.labels.length > 1440) { liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); liveChart.data.datasets[1].data.shift(); }
+            if(liveChart.data.labels.length > 50) { liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); }
             liveChart.update();
-            localStorage.setItem('live_v5', JSON.stringify({l: liveChart.data.labels, h: liveChart.data.datasets[0].data, w: liveChart.data.datasets[1].data}));
-        } catch (e) { console.error(e); }
+        } catch (e) {}
     }
 
-    async function init() {
-        const histCtx = document.getElementById('histChart').getContext('2d');
-        histChart = new Chart(histCtx, {
-            type: 'line',
-            data: { labels: [], datasets: [{ label: 'Daily PH/s', data: [], borderColor: '#58a6ff', tension: 0.3, fill: true, backgroundColor: 'rgba(88,166,255,0.1)' }] },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' } } } }
-        });
-        const liveCtx = document.getElementById('liveChart').getContext('2d');
-        const s = JSON.parse(localStorage.getItem('live_v5') || '{"l":[], "h":[], "w":[]}');
-        liveChart = new Chart(liveCtx, {
-            type: 'line',
-            data: { labels: s.l, datasets: [{ label: 'PH/s', data: s.h, borderColor: '#58a6ff', tension: 0.2, pointRadius: 0 }, { label: 'Miners', data: s.w, borderColor: '#ff7b72', yAxisID: 'y1', pointRadius: 0, borderDash: [5,5] }] },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#30363d' } }, y1: { position: 'right', grid: { display: false }, ticks: { precision: 0 } } } }
-        });
-        await fetchDeepHistory(); update(); setInterval(update, 60000);
-    }
-    if (WALLET) init();
+    const ctx = document.getElementById('liveChart').getContext('2d');
+    liveChart = new Chart(ctx, { type: 'line', data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', tension: 0.2, pointRadius: 0 }] }, options: { responsive: true, maintainAspectRatio: false } });
+    if (WALLET) { update(); setInterval(update, 60000); }
 </script>
 </body>
 </html>
