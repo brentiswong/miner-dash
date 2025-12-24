@@ -71,7 +71,7 @@
             </div>
             <h3>Historical Hashrate</h3><canvas id="histChart"></canvas>
         </div>
-        <div class="chart-box"><h3>Live 24H</h3><canvas id="liveChart"></canvas></div>
+        <div class="chart-box"><h3>Live 24H (Persisted)</h3><canvas id="liveChart"></canvas></div>
     </div>
 
     <div class="table-container">
@@ -110,7 +110,32 @@
     function login(source) { 
         const id = source === 'main' ? 'wallet-input-main' : 'wallet-input-footer';
         const v = document.getElementById(id).value.trim(); 
-        if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } 
+        if(v) { 
+            localStorage.setItem('ocean_wallet', v); 
+            localStorage.removeItem('live_24h_data'); // Reset live chart for new address
+            location.reload(); 
+        } 
+    }
+
+    function saveLiveToLocal(label, ph, miners) {
+        let stored = JSON.parse(localStorage.getItem('live_24h_data') || '[]');
+        stored.push({ time: label, ph: ph, miners: miners, timestamp: Date.now() });
+        // Keep only last 1440 entries (1 minute updates for 24 hours)
+        const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+        stored = stored.filter(d => d.timestamp > oneDayAgo).slice(-1440);
+        localStorage.setItem('live_24h_data', JSON.stringify(stored));
+    }
+
+    function loadLiveFromLocal() {
+        const stored = JSON.parse(localStorage.getItem('live_24h_data') || '[]');
+        const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+        const valid = stored.filter(d => d.timestamp > oneDayAgo);
+        valid.forEach(d => {
+            liveChart.data.labels.push(d.time);
+            liveChart.data.datasets[0].data.push(d.ph);
+            liveChart.data.datasets[1].data.push(d.miners);
+        });
+        liveChart.update();
     }
 
     function setSort(k) {
@@ -229,17 +254,22 @@
                 return { name: n, h5: curH/1e12, h3: s.hashrate_10800s/1e12, h24: s.hashrate_86400s/1e12, status: curH > 0 ? 'ACTIVE' : 'INACTIVE' };
             });
             renderWorkers();
-            document.getElementById('t_hr').innerText = (t5/1e15).toFixed(3) + " PH/s";
+            const currentPH = (t5/1e15).toFixed(3);
+            document.getElementById('t_hr').innerText = currentPH + " PH/s";
             document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(3)} / ${(t24/1e15).toFixed(3)} PH/s`;
 
             document.getElementById('earnings-table').innerHTML = earnings.map(e => `<tr><td>${e.TimeUTC.substring(5,16)}</td><td>#${e.Blockheight}</td><td>${satsToBtc(e.NetUserRwd)}</td></tr>`).join('');
             document.getElementById('payouts-table').innerHTML = payouts.map(p => `<tr><td>${p.TimeUTC.substring(5,16)}</td><td>${satsToBtc(p.PayoutAmt)}</td><td><a class="tx-link" href="https://mempool.space/tx/${p.TXID}" target="_blank">${p.TXID.substring(0,8)}</a></td></tr>`).join('');
 
             const now = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            
+            // Push to Chart and Storage
             liveChart.data.labels.push(now);
-            liveChart.data.datasets[0].data.push((t5/1e15).toFixed(3));
+            liveChart.data.datasets[0].data.push(currentPH);
             liveChart.data.datasets[1].data.push(activeCount);
-            if(liveChart.data.labels.length > 100) { 
+            saveLiveToLocal(now, currentPH, activeCount);
+
+            if(liveChart.data.labels.length > 1440) { 
                 liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); liveChart.data.datasets[1].data.shift(); 
             }
             liveChart.update();
@@ -273,7 +303,12 @@
             } 
         });
         
-        if (WALLET) { fetchDeepHistory(); update(); setInterval(update, 60000); }
+        if (WALLET) { 
+            loadLiveFromLocal(); // Load stored data first
+            fetchDeepHistory(); 
+            update(); 
+            setInterval(update, 60000); 
+        }
     }
     init();
 </script>
