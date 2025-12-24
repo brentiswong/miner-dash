@@ -13,9 +13,9 @@
         .stat-item { display: flex; align-items: center; gap: 6px; }
         .pool-label { color: #8b949e; text-transform: uppercase; font-size: 0.65rem; font-weight: 700; }
         
-        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px; }
+        .grid-top { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 15px; }
         .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
-        @media (max-width: 900px) { .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+        @media (max-width: 900px) { .grid-top, .grid-4 { grid-template-columns: 1fr; } }
         
         .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; display: flex; flex-direction: column; }
         .price-card { border-left: 4px solid var(--gold); }
@@ -35,7 +35,9 @@
         .btn-sm.active { background: var(--accent); }
         .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 25px; }
         table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; }
-        th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; cursor: pointer; user-select: none; }
+        th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; cursor: pointer; user-select: none; transition: background 0.2s; }
+        th:hover { background: #30363d; color: white; }
+        th.active-sort { color: var(--accent); }
         td { padding: 12px; border-bottom: 1px solid var(--border); }
         h3 { font-size: 0.85rem; color: var(--accent); padding: 15px; margin: 0; background: #1c2128; border-bottom: 1px solid var(--border); text-transform: uppercase; }
         .search-input { width: 100%; max-width: 300px; padding: 8px; margin: 10px 15px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
@@ -63,10 +65,19 @@
         <div class="stat-item"><span class="pool-label">Blocks In Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
     </div>
 
-    <div class="grid-3">
-        <div class="card"><div class="label">Hashrate (5m/3h/24h)</div><div id="t_hr" class="value">0.00 PH/s</div><div id="t_hr_avg" class="sub-value" style="color:var(--accent)">...</div></div>
+    <div class="grid-top">
+        <div class="card"><div class="label">Total Hashrate</div><div id="t_hr" class="value">0.00 PH/s</div><div id="t_hr_avg" class="sub-value" style="color:var(--accent)">...</div></div>
+        <div class="card">
+            <div class="label">Miner Status</div>
+            <div class="value">
+                <span id="miner-active" style="color:var(--ok)">0</span> <span style="color:#8b949e; font-size: 1rem;">Active</span>
+            </div>
+            <div class="sub-value" style="color:var(--dead); font-weight:bold;">
+                <span id="miner-dead">0</span> Inactive
+            </div>
+        </div>
         <div class="card"><div class="label">Unpaid (BTC)</div><div id="t_unpaid" class="value">0.00000000</div><div id="t_usd" class="sub-value" style="color:var(--ok)">...</div></div>
-        <div class="card"><div class="label">Est. Earnings Next Block</div><div id="t_est" class="value">0.00000000</div><div id="t_est_usd" class="sub-value" style="color:var(--ok)">...</div></div>
+        <div class="card"><div class="label">Est. Next Block</div><div id="t_est" class="value">0.00000000</div><div id="t_est_usd" class="sub-value" style="color:var(--ok)">...</div></div>
     </div>
 
     <div class="grid-4">
@@ -99,7 +110,13 @@
             </div>
             <h3>Historical Hashrate</h3><canvas id="histChart"></canvas>
         </div>
-        <div class="chart-box"><h3>Live 24H</h3><canvas id="liveChart"></canvas></div>
+        <div class="chart-box">
+            <div class="controls">
+                <button id="live-btn-24h" class="btn-sm active" onclick="toggleLiveRange('24h')">24H</button>
+                <button id="live-btn-window" class="btn-sm" onclick="toggleLiveRange('window')">WINDOW</button>
+            </div>
+            <h3>Live Performance</h3><canvas id="liveChart"></canvas>
+        </div>
     </div>
 
     <div class="table-container">
@@ -107,7 +124,13 @@
         <input type="text" id="miner-search" class="search-input" placeholder="Search miners..." onkeyup="renderWorkers()">
         <table>
             <thead>
-                <tr><th onclick="setSort('name')">Name ↕</th><th onclick="setSort('h5')">5m (TH) ↕</th><th onclick="setSort('h3')">3h (TH) ↕</th><th onclick="setSort('h24')">24h (TH) ↕</th><th onclick="setSort('statusWeight')">Status ↕</th></tr>
+                <tr id="miner-headers">
+                    <th data-key="name" onclick="setSort('name')">Name <span>↕</span></th>
+                    <th data-key="h5" onclick="setSort('h5')">5m (TH) <span>↕</span></th>
+                    <th data-key="h3" onclick="setSort('h3')">3h (TH) <span>↕</span></th>
+                    <th data-key="h24" onclick="setSort('h24')">24h (TH) <span>↕</span></th>
+                    <th data-key="statusWeight" onclick="setSort('statusWeight')">Status <span>↕</span></th>
+                </tr>
             </thead>
             <tbody id="worker-table"></tbody>
         </table>
@@ -142,6 +165,8 @@
     let currentSort = { key: 'name', asc: true };
     let blockFinderCache = {}; 
     let lastBlockTime = 0;
+    let windowStartTime = 0;
+    let liveRange = '24h'; // '24h' or 'window'
 
     const satsToBtc = (sats) => (parseFloat(sats || 0) / 100000000).toFixed(8);
 
@@ -184,31 +209,43 @@
     function saveLiveToLocal(label, ph, miners) {
         let stored = JSON.parse(localStorage.getItem('live_24h_data') || '[]');
         stored.push({ time: label, ph: ph, miners: miners, timestamp: Date.now() });
-        const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
-        stored = stored.filter(d => d.timestamp > oneDayAgo).slice(-1440);
+        // Keep 7 days of data (10080 minutes) to support long windows
+        const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+        stored = stored.filter(d => d.timestamp > sevenDaysAgo).slice(-10080);
         localStorage.setItem('live_24h_data', JSON.stringify(stored));
     }
 
     function loadLiveFromLocal() {
         const stored = JSON.parse(localStorage.getItem('live_24h_data') || '[]');
-        const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
-        const valid = stored.filter(d => d.timestamp > oneDayAgo);
-        valid.forEach(d => {
-            liveChart.data.labels.push(d.time);
-            liveChart.data.datasets[0].data.push(d.ph);
-            liveChart.data.datasets[1].data.push(d.miners);
-        });
+        const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+        
+        // Filter based on selected range toggle
+        const filterTime = (liveRange === 'window' && windowStartTime > 0) ? windowStartTime : twentyFourHoursAgo;
+        const valid = stored.filter(d => d.timestamp > filterTime);
+        
+        liveChart.data.labels = valid.map(d => d.time);
+        liveChart.data.datasets[0].data = valid.map(d => d.ph);
+        liveChart.data.datasets[1].data = valid.map(d => d.miners);
         liveChart.update();
+    }
+
+    function toggleLiveRange(range) {
+        liveRange = range;
+        document.getElementById('live-btn-24h').classList.toggle('active', range === '24h');
+        document.getElementById('live-btn-window').classList.toggle('active', range === 'window');
+        loadLiveFromLocal();
     }
 
     function setSort(k) {
         if (currentSort.key === k) currentSort.asc = !currentSort.asc;
-        else { currentSort.key = k; currentSort.asc = true; }
+        else { currentSort.key = k; currentSort.asc = (k !== 'name'); } 
         renderWorkers();
     }
 
     function filterHist(days) {
-        document.querySelectorAll('.btn-sm').forEach(b => b.classList.remove('active'));
+        const btns = document.querySelectorAll('.chart-box:first-child .btn-sm');
+        btns.forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
         const filtered = days === 0 ? fullHistData : fullHistData.slice(-days);
         histChart.data.labels = filtered.map(d => d.date);
         histChart.data.datasets[0].data = filtered.map(d => (parseFloat(d.hashrate_avg_24hr_thsec)/1000).toFixed(2));
@@ -226,6 +263,18 @@
                 return currentSort.asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
             }
             return currentSort.asc ? valA - valB : valB - valA;
+        });
+
+        document.querySelectorAll('#miner-headers th').forEach(th => {
+            const key = th.getAttribute('data-key');
+            const span = th.querySelector('span');
+            if (key === currentSort.key) {
+                th.classList.add('active-sort');
+                span.innerText = currentSort.asc ? '▲' : '▼';
+            } else {
+                th.classList.remove('active-sort');
+                span.innerText = '↕';
+            }
         });
 
         document.getElementById('worker-table').innerHTML = sorted.map(m => `
@@ -334,7 +383,7 @@
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=30`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=100`)),
                 fetch(`https://mempool.space/api/v1/mining/pool/ocean/blocks`),
                 fetchRecursiveReport('earnings'),
                 fetchRecursiveReport('payouts')
@@ -350,7 +399,6 @@
             const poolEH = poolRawHash / 1e18;
             const netEH = netHrData.currentHashrate / 1e18;
             
-            // Ocean pool average block time calculation
             if (poolEH > 0 && netEH > 0) {
                 const poolBlockTimeMinutes = (10 / (poolEH / netEH));
                 const pHours = Math.floor(poolBlockTimeMinutes / 60);
@@ -373,6 +421,12 @@
             const sharelog = parseFloat(poolBlocks[0]?.sharelog_window || 0);
             let k = 0, cum = 0;
             for (const b of poolBlocks) { cum += parseFloat(b.accepted_shares || 0); k++; if (cum >= sharelog) break; }
+            
+            // Calculate Window Start Time based on k-th block back
+            if(poolBlocks[k-1]) {
+                windowStartTime = poolBlocks[k-1].timestamp * 1000;
+            }
+
             document.getElementById('p-blocks').innerText = k;
             document.getElementById('p-hr').innerText = poolEH.toFixed(2) + " EH/s";
             
@@ -384,14 +438,14 @@
             document.getElementById('t_est').innerText = est.toFixed(8);
             document.getElementById('t_est_usd').innerText = "$" + (est * btcPrice).toFixed(2);
 
-            let t5=0, t3=0, t24=0, activeCount=0;
+            let t5=0, t3=0, t24=0, activeCount=0, deadCount=0;
             const ws = hrData.result?.workers || {};
             lastWorkers = Object.keys(ws).map(n => {
                 const s = ws[n][0];
                 const curH = parseFloat(s.hashrate_300s);
                 t5 += curH; t3 += parseFloat(s.hashrate_10800s); t24 += parseFloat(s.hashrate_86400s);
                 const isActive = curH > 0;
-                if(isActive) activeCount++;
+                if(isActive) activeCount++; else deadCount++;
                 return { 
                     name: n, 
                     h5: curH/1e12, 
@@ -401,6 +455,10 @@
                     statusWeight: isActive ? 1 : 0 
                 };
             });
+
+            document.getElementById('miner-active').innerText = activeCount;
+            document.getElementById('miner-dead').innerText = deadCount;
+
             renderWorkers();
             const currentPH = (t5/1e15).toFixed(2);
             document.getElementById('t_hr').innerText = currentPH + " PH/s";
@@ -414,12 +472,8 @@
             document.getElementById('payouts-table').innerHTML = payouts.map(p => `<tr><td>${p.TimeUTC.substring(5,16)}</td><td>${satsToBtc(p.PayoutAmt)}</td><td><a class="tx-link" href="https://mempool.space/tx/${p.TXID}" target="_blank">${p.TXID.substring(0,8)}</a></td></tr>`).join('');
 
             const now = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-            liveChart.data.labels.push(now);
-            liveChart.data.datasets[0].data.push(currentPH);
-            liveChart.data.datasets[1].data.push(activeCount);
             saveLiveToLocal(now, currentPH, activeCount);
-            if(liveChart.data.labels.length > 60) { liveChart.data.labels.shift(); liveChart.data.datasets[0].data.shift(); liveChart.data.datasets[1].data.shift(); }
-            liveChart.update();
+            loadLiveFromLocal();
 
         } catch (e) { console.error("Update loop error:", e); }
     }
