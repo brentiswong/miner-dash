@@ -13,11 +13,10 @@
         .stat-item { display: flex; align-items: center; gap: 6px; }
         .pool-label { color: #8b949e; text-transform: uppercase; font-size: 0.65rem; font-weight: 700; }
         
-        /* Top Grid Layout */
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 20px; }
         .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; display: flex; flex-direction: column; }
         
-        /* Moving BTC Price to the end */
+        /* BTC Price to the far right */
         .price-card { order: 4; }
         
         .label { font-size: 0.65rem; color: #8b949e; text-transform: uppercase; font-weight: 700; }
@@ -63,7 +62,7 @@
         <div class="card price-card"><div class="label">BTC Price</div><div id="t_btc_price" class="value" style="color:var(--gold)">$...</div><div class="sub-value">Real-time Spot</div></div>
         <div class="card"><div class="label">Hashrate (5m/3h/24h)</div><div id="t_hr" class="value">0.00 PH/s</div><div id="t_hr_avg" class="sub-value" style="color:var(--accent)">...</div></div>
         <div class="card"><div class="label">Unpaid (BTC)</div><div id="t_unpaid" class="value">0.00000000</div><div id="t_usd" class="sub-value" style="color:var(--ok)">...</div></div>
-        <div class="card"><div class="label">Est. Next / TIDES</div><div id="t_est" class="value">0.00000000</div><div id="t_shares" class="sub-value">...</div></div>
+        <div class="card"><div class="label">Est. Earnings Next Block</div><div id="t_est" class="value">0.00000000</div><div id="t_est_usd" class="sub-value" style="color:var(--ok)">...</div></div>
     </div>
 
     <div class="chart-grid">
@@ -244,11 +243,14 @@
             document.getElementById('p-blocks').innerText = k;
 
             document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
+            
             const unpaid = parseFloat(u.unpaid||0);
             document.getElementById('t_unpaid').innerText = unpaid.toFixed(8);
             document.getElementById('t_usd').innerText = "$" + (unpaid * price).toFixed(2);
-            document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block||0).toFixed(8);
-            document.getElementById('t_shares').innerText = (parseFloat(u.shares_in_tides||0)/1e9).toFixed(2) + "G";
+            
+            const est = parseFloat(u.estimated_earn_next_block||0);
+            document.getElementById('t_est').innerText = est.toFixed(8);
+            document.getElementById('t_est_usd').innerText = "$" + (est * price).toFixed(2);
 
             let t5=0, t3=0, t24=0, activeCount=0;
             const ws = hrData.result?.workers || {};
