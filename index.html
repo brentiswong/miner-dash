@@ -6,7 +6,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --dead: #f85149; --gold: #f2a900; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; padding-bottom: 80px; }
         .container { max-width: 1200px; margin: auto; }
         #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
         .pool-status { background: #1c2128; border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; flex-wrap: wrap; gap: 10px; }
@@ -33,11 +33,16 @@
         @media (max-width: 900px) { .tables-grid { grid-template-columns: 1fr; } }
         a.tx-link { color: var(--accent); text-decoration: none; }
         a.tx-link:hover { text-decoration: underline; }
+        
+        /* Persistent Footer Search */
+        .address-footer { position: fixed; bottom: 0; left: 0; width: 100%; background: #1c2128; border-top: 1px solid var(--border); padding: 12px; display: flex; justify-content: center; align-items: center; gap: 10px; z-index: 999; }
+        .address-footer input { background: var(--bg); border: 1px solid var(--border); color: white; padding: 8px 12px; border-radius: 4px; width: 100%; max-width: 400px; font-family: monospace; }
+        .address-footer button { background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH</h2><input type="text" id="wallet-input" placeholder="BTC Address"><br><br><button onclick="login()" style="background:var(--accent);color:white;padding:10px 20px;border:none;border-radius:4px;cursor:pointer">Sync</button></div></div>
+<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH</h2><input type="text" id="wallet-input-main" placeholder="BTC Address"><br><br><button onclick="login('main')" style="background:var(--accent);color:white;padding:10px 20px;border:none;border-radius:4px;cursor:pointer">Sync</button></div></div>
 
 <div class="container">
     <div class="pool-status">
@@ -87,6 +92,12 @@
     </div>
 </div>
 
+<div class="address-footer">
+    <span class="pool-label">Mining Address:</span>
+    <input type="text" id="wallet-input-footer" placeholder="Change BTC Address...">
+    <button onclick="login('footer')">Update</button>
+</div>
+
 <script>
     let WALLET = localStorage.getItem('ocean_wallet');
     const PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
@@ -97,7 +108,11 @@
 
     const satsToBtc = (sats) => (parseFloat(sats || 0) / 100000000).toFixed(8);
 
-    function login() { const v = document.getElementById('wallet-input').value.trim(); if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } }
+    function login(source) { 
+        const id = source === 'main' ? 'wallet-input-main' : 'wallet-input-footer';
+        const v = document.getElementById(id).value.trim(); 
+        if(v) { localStorage.setItem('ocean_wallet', v); location.reload(); } 
+    }
 
     function setSort(k) {
         if (currentSort.key === k) currentSort.asc = !currentSort.asc;
@@ -145,7 +160,6 @@
     async function fetchDeepHistory() {
         let date = new Date();
         const results = [];
-        // Loop back 24 months for 2 years of history
         for(let i=0; i<24; i++) {
             const y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, '0');
             try {
@@ -162,6 +176,7 @@
     async function update() {
         if (!WALLET) return;
         document.getElementById('auth-overlay').style.display = 'none';
+        document.getElementById('wallet-input-footer').value = WALLET;
         try {
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const price = parseFloat((await priceRes.json()).data.amount);
