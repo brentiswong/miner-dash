@@ -12,11 +12,18 @@
         .pool-status { background: #1c2128; border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; flex-wrap: wrap; gap: 10px; }
         .stat-item { display: flex; align-items: center; gap: 6px; }
         .pool-label { color: #8b949e; text-transform: uppercase; font-size: 0.65rem; font-weight: 700; }
+        
+        /* Top Grid Layout */
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; }
+        .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; display: flex; flex-direction: column; }
+        
+        /* Moving BTC Price to the end */
+        .price-card { order: 4; }
+        
         .label { font-size: 0.65rem; color: #8b949e; text-transform: uppercase; font-weight: 700; }
         .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; }
         .sub-value { font-size: 0.8rem; margin-top: 4px; opacity: 0.8; }
+        
         .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
         @media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
         .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 320px; position: relative; }
@@ -53,7 +60,7 @@
     </div>
 
     <div class="grid">
-        <div class="card"><div class="label">BTC Price</div><div id="t_btc_price" class="value" style="color:var(--gold)">$...</div><div class="sub-value">Real-time Spot</div></div>
+        <div class="card price-card"><div class="label">BTC Price</div><div id="t_btc_price" class="value" style="color:var(--gold)">$...</div><div class="sub-value">Real-time Spot</div></div>
         <div class="card"><div class="label">Hashrate (5m/3h/24h)</div><div id="t_hr" class="value">0.00 PH/s</div><div id="t_hr_avg" class="sub-value" style="color:var(--accent)">...</div></div>
         <div class="card"><div class="label">Unpaid (BTC)</div><div id="t_unpaid" class="value">0.00000000</div><div id="t_usd" class="sub-value" style="color:var(--ok)">...</div></div>
         <div class="card"><div class="label">Est. Next / TIDES</div><div id="t_est" class="value">0.00000000</div><div id="t_shares" class="sub-value">...</div></div>
