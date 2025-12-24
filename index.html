@@ -43,8 +43,9 @@
 
 <div class="container">
     <div class="pool-status">
-        <div class="stat-item"><span class="pool-label">Pool hashrate:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Pool HR:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Block Reward:</span> <span id="p-full-rwd" style="color:var(--ok)">... BTC</span></div>
         <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Blocks in Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
     </div>
@@ -110,9 +111,9 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Date</th>
+                        <th>Date (UTC)</th>
                         <th>Block</th>
-                        <th>Amount (BTC)</th>
+                        <th>Net BTC</th>
                     </tr>
                 </thead>
                 <tbody id="earnings-table"></tbody>
@@ -123,7 +124,7 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Date</th>
+                        <th>Date (UTC)</th>
                         <th>Amount (BTC)</th>
                         <th>TXID</th>
                     </tr>
@@ -174,6 +175,8 @@
             <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td></tr>`).join('');
     }
 
+    const satsToBtc = (sats) => (parseFloat(sats || 0) / 100000000).toFixed(8);
+
     async function fetchDeepHistory() {
         let date = new Date();
         const results = [];
@@ -209,13 +212,16 @@
             const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
             const price = parseFloat((await priceRes.json()).data.amount);
 
+            const now = new Date();
+            const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
             const [hrRes, uRes, pHRRes, blocksRes, rewardsRes, payoutsRes] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`)),
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=30`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_rewards/${WALLET}?page=0&page_size=10`)),
-                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_payouts/${WALLET}?page=0&page_size=10`))
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_earnings_report/${WALLET}/${yearMonth}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_payout_report/${WALLET}/${yearMonth}`))
             ]);
 
             const hrData = await hrRes.json();
@@ -225,16 +231,21 @@
             const rewardsData = await rewardsRes.json();
             const payoutsData = await payoutsRes.json();
 
-            // Pool Stats
-            const block = blocksData.result?.blocks?.[0] || {};
+            // Pool Stats & Full Block Reward
+            const poolBlocks = blocksData.result?.blocks || [];
+            const block = poolBlocks[0] || {};
             document.getElementById('p-height').innerText = "#" + (block.height || "...");
             document.getElementById('p-finder').innerText = block.username ? (block.username.substring(0,8) + (block.workername ? "."+block.workername : "")) : "...";
             document.getElementById('p-hr').innerText = (parseFloat(pHR.result?.pool_300s||0)/1e18).toFixed(2) + " EH/s";
             
+            // Full Reward of the pool's last block (sats to BTC)
+            const fullRewardSats = parseFloat(block.reward || 0);
+            document.getElementById('p-full-rwd').innerText = satsToBtc(fullRewardSats) + " BTC";
+            
             const sharelog = parseFloat(block.sharelog_window || 0);
             let k = 0, cum = 0;
-            const blocks = (blocksData.result?.blocks || []).sort((a, b) => b.height - a.height);
-            for (const b of blocks) { cum += parseFloat(b.accepted_shares || 0); k++; if (cum >= sharelog) break; }
+            const sortedBlocks = [...poolBlocks].sort((a, b) => b.height - a.height);
+            for (const b of sortedBlocks) { cum += parseFloat(b.accepted_shares || 0); k++; if (cum >= sharelog) break; }
             document.getElementById('p-blocks').innerText = k;
 
             // Totals
@@ -259,17 +270,17 @@
             document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
 
             // Table Rendering
-            const earnList = rewardsData.result?.rewards || [];
-            document.getElementById('earnings-table').innerHTML = earnList.slice(0,10).map(e => `
-                <tr><td>${new Date(e.ts).toLocaleDateString()}</td><td>#${e.block_height}</td><td>${parseFloat(e.amount).toFixed(8)}</td></tr>
-            `).join('') || '<tr><td colspan="3">No recent earnings found</td></tr>';
+            const earnList = (rewardsData.result?.report || []).filter(r => r.Blockheight !== "-1").reverse();
+            document.getElementById('earnings-table').innerHTML = earnList.slice(0, 10).map(e => `
+                <tr><td>${e.TimeUTC.replace('T', ' ').substring(0,16)}</td><td>#${e.Blockheight}</td><td>${satsToBtc(e.NetUserRwd)}</td></tr>
+            `).join('') || '<tr><td colspan="3">No earnings this month</td></tr>';
 
-            const payList = payoutsData.result?.payouts || [];
-            document.getElementById('payouts-table').innerHTML = payList.slice(0,10).map(p => `
-                <tr><td>${new Date(p.ts).toLocaleDateString()}</td><td>${parseFloat(p.amount).toFixed(8)}</td><td><a href="https://mempool.space/tx/${p.txid}" target="_blank" style="color:var(--accent)">View</a></td></tr>
-            `).join('') || '<tr><td colspan="3">No recent payouts found</td></tr>';
+            const payList = (payoutsData.result?.report || []).reverse();
+            document.getElementById('payouts-table').innerHTML = payList.slice(0, 10).map(p => `
+                <tr><td>${p.TimeUTC.replace('T', ' ').substring(0,16)}</td><td>${satsToBtc(p.PayoutAmt)}</td><td><a href="https://mempool.space/tx/${p.TXID}" target="_blank" style="color:var(--accent)">${p.TXID.substring(0,8)}...</a></td></tr>
+            `).join('') || '<tr><td colspan="3">No payouts this month</td></tr>';
 
-            // Live Chart
+            // Charts
             const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
             liveChart.data.labels.push(time);
             liveChart.data.datasets[0].data.push((t5/1e15).toFixed(2));
