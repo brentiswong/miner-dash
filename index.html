@@ -298,7 +298,7 @@
 
     function saveLiveToLocal(label, ph, miners) {
         let stored = JSON.parse(localStorage.getItem('live_24h_data') || '[]');
-        stored.push({ time: label, ph: ph, miners: miners, timestamp: Date.now() });
+        stored.push({ time: label, ph: parseFloat(ph), miners: parseInt(miners), timestamp: Date.now() });
         const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
         stored = stored.filter(d => d.timestamp > sevenDaysAgo).slice(-10080);
         localStorage.setItem('live_24h_data', JSON.stringify(stored));
@@ -325,8 +325,8 @@
         }
 
         liveChart.data.labels = history.map(d => d.time);
-        liveChart.data.datasets[0].data = history.map(d => d.ph);
-        liveChart.data.datasets[1].data = history.map(d => d.miners || 0);
+        liveChart.data.datasets[0].data = history.map(d => parseFloat(d.ph || 0));
+        liveChart.data.datasets[1].data = history.map(d => parseInt(d.miners || 0));
         liveChart.update();
     }
 
@@ -446,7 +446,7 @@
             const earningsAll = await fetchRecursiveReport('earnings', 200);
             const getBtcSum = (days) => {
                 const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
-                return earningsAll.reduce((acc, e) => (new Date(e.TimeUTC) > cutoff ? acc + parseFloat(e.NetUserRwd) : acc), 0) / 100000000;
+                return earningsAll.reduce((acc, e) => (new Date(e.TimeUTC) > cutoff ? acc + parseFloat(e.NetUserRwd || 0) : acc), 0) / 100000000;
             };
             const ph30 = calcPH(30), btc30 = getBtcSum(30);
             const ph60 = calcPH(60), btc60 = getBtcSum(60);
@@ -476,7 +476,9 @@
             const netPH = netHrData.currentHashrate / 1e15;
             const avgBlockRewardBTC = lastBlocks.reduce((acc, b) => acc + (b.extras.reward / 1e8), 0) / lastBlocks.length;
             document.getElementById('t_hashprice').innerText = `$${(((144 * avgBlockRewardBTC) / netPH) * btcPrice).toFixed(2)}`;
-            const diffData = await diffRes.json(), currentTip = await tipRes.json();
+            
+            const diffData = await diffRes.json();
+            const currentTip = await tipRes.json();
             const blocksLeft = diffData.nextRetargetHeight - currentTip;
             document.getElementById('t_diff_progress').style.width = diffData.progressPercent.toFixed(1) + '%';
             document.getElementById('t_diff').innerText = `${diffData.difficultyChange > 0 ? '+' : ''}${diffData.difficultyChange.toFixed(2)}%`;
@@ -489,6 +491,7 @@
 
             const avgTimeMs = diffData.timeAvg, netMin = Math.floor(avgTimeMs / 60000), netSec = Math.floor((avgTimeMs % 60000) / 1000);
             document.getElementById('t_avg_block_time').innerText = `Avg Block: ${netMin}m ${netSec}s`;
+            
             const mPoolBlocks = await mPoolBlocksRes.json();
             if (mPoolBlocks && mPoolBlocks[0]) {
                 lastBlockTime = mPoolBlocks[0].timestamp;
@@ -534,13 +537,15 @@
             document.getElementById('miner-active').innerText = activeCount;
             document.getElementById('miner-dead').innerText = deadCount;
             renderWorkers(1);
-            const currentPH = (t5/1e15).toFixed(2);
+            const currentPH = parseFloat((t5/1e15).toFixed(2));
             document.getElementById('t_hr').innerText = currentPH + " PH/s";
             document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
+            
             const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-            const thirtyDayTotal = allEarnings.filter(e => new Date(e.TimeUTC) > thirtyDaysAgo).reduce((sum, e) => sum + parseFloat(e.NetUserRwd), 0) / 100000000;
+            const thirtyDayTotal = allEarnings.filter(e => new Date(e.TimeUTC) > thirtyDaysAgo).reduce((sum, e) => sum + parseFloat(e.NetUserRwd || 0), 0) / 100000000;
             document.getElementById('sum-btc-val').innerText = thirtyDayTotal.toFixed(8) + " BTC";
             document.getElementById('sum-usd-val').innerText = `($${(thirtyDayTotal * btcPrice).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
+            
             renderEarnings(1);
             renderPayouts(1);
             
