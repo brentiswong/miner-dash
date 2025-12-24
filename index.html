@@ -33,8 +33,6 @@
         @media (max-width: 900px) { .tables-grid { grid-template-columns: 1fr; } }
         a.tx-link { color: var(--accent); text-decoration: none; }
         a.tx-link:hover { text-decoration: underline; }
-        
-        /* Persistent Footer Search */
         .address-footer { position: fixed; bottom: 0; left: 0; width: 100%; background: #1c2128; border-top: 1px solid var(--border); padding: 12px; display: flex; justify-content: center; align-items: center; gap: 10px; z-index: 999; }
         .address-footer input { background: var(--bg); border: 1px solid var(--border); color: white; padding: 8px 12px; border-radius: 4px; width: 100%; max-width: 400px; font-family: monospace; }
         .address-footer button { background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
@@ -80,7 +78,7 @@
         <input type="text" id="miner-search" class="search-input" placeholder="Search miners..." onkeyup="renderWorkers()">
         <table>
             <thead>
-                <tr><th onclick="setSort('name')">Name ↕</th><th onclick="setSort('h5')">5m (TH) ↕</th><th onclick="setSort('h3')">3h (TH) ↕</th><th onclick="setSort('h24')">24h (TH) ↕</th><th>Status</th></tr>
+                <tr><th onclick="setSort('name')">Name ↕</th><th onclick="setSort('h5')">5m (TH) ↕</th><th onclick="setSort('h3')">3h (TH) ↕</th><th onclick="setSort('h24')">24h (TH) ↕</th><th>Last Seen</th><th>Status</th></tr>
             </thead>
             <tbody id="worker-table"></tbody>
         </table>
@@ -108,6 +106,12 @@
 
     const satsToBtc = (sats) => (parseFloat(sats || 0) / 100000000).toFixed(8);
 
+    function formatTime(ts) {
+        if (!ts) return "N/A";
+        const d = new Date(ts * 1000);
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
     function login(source) { 
         const id = source === 'main' ? 'wallet-input-main' : 'wallet-input-footer';
         const v = document.getElementById(id).value.trim(); 
@@ -134,8 +138,14 @@
         let filtered = lastWorkers.filter(m => m.name.toLowerCase().includes(query));
         const sorted = [...filtered].sort((a,b) => currentSort.asc ? (a[currentSort.key] > b[currentSort.key] ? 1 : -1) : (a[currentSort.key] < b[currentSort.key] ? 1 : -1));
         document.getElementById('worker-table').innerHTML = sorted.map(m => `
-            <tr><td><b>${m.name}</b></td><td>${m.h5.toFixed(2)}</td><td>${m.h3.toFixed(2)}</td><td>${m.h24.toFixed(2)}</td>
-            <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td></tr>`).join('');
+            <tr>
+                <td><b>${m.name}</b></td>
+                <td>${m.h5.toFixed(2)}</td>
+                <td>${m.h3.toFixed(2)}</td>
+                <td>${m.h24.toFixed(2)}</td>
+                <td style="color:#8b949e">${m.lastSeen}</td>
+                <td style="color:${m.status==='ACTIVE'?'var(--ok)':'var(--dead)'}">● ${m.status}</td>
+            </tr>`).join('');
     }
 
     async function fetchRecursiveReport(type, limit = 10) {
@@ -227,7 +237,14 @@
                 const curH = parseFloat(s.hashrate_300s);
                 t5 += curH; t3 += parseFloat(s.hashrate_10800s); t24 += parseFloat(s.hashrate_86400s);
                 if(curH > 0) activeCount++;
-                return { name: n, h5: curH/1e12, h3: s.hashrate_10800s/1e12, h24: s.hashrate_86400s/1e12, status: curH > 0 ? 'ACTIVE' : 'INACTIVE' };
+                return { 
+                    name: n, 
+                    h5: curH/1e12, 
+                    h3: s.hashrate_10800s/1e12, 
+                    h24: s.hashrate_86400s/1e12, 
+                    lastSeen: formatTime(s.timestamp),
+                    status: curH > 0 ? 'ACTIVE' : 'INACTIVE' 
+                };
             });
             renderWorkers();
             document.getElementById('t_hr').innerText = (t5/1e15).toFixed(3) + " PH/s";
