@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>NGU TECH - BTC Mining Dashboard</title>
+    <title>NGU TECH - Pro BTC Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { 
@@ -29,22 +29,7 @@
         .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; display: flex; flex-direction: column; position: relative; overflow: hidden; }
         .price-card { border-left: 4px solid var(--btc-orange); }
         
-        /* Sparkline Container and Label Styles */
-        .sparkline-container { position: absolute; bottom: 0; left: 0; width: 100%; height: 50px; pointer-events: none; }
-        .price-label {
-            position: absolute;
-            right: 8px;
-            font-family: monospace;
-            font-size: 0.6rem;
-            color: #8b949e;
-            background: rgba(22, 27, 34, 0.7);
-            padding: 1px 4px;
-            border-radius: 3px;
-            z-index: 2;
-        }
-        #btc-high-val { top: 2px; border-top: 1px solid rgba(63, 185, 80, 0.3); }
-        #btc-low-val { bottom: 2px; border-bottom: 1px solid rgba(248, 81, 73, 0.3); }
-
+        .sparkline-container { position: absolute; bottom: 0; left: 0; width: 100%; height: 50px; pointer-events: none; opacity: 0.4; }
         .label { font-size: 0.65rem; color: #8b949e; text-transform: uppercase; font-weight: 700; }
         .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; z-index: 1; }
         .sub-value { font-size: 0.8rem; margin-top: 4px; opacity: 0.8; z-index: 1; }
@@ -153,11 +138,7 @@
             <div class="label">BTC Price</div>
             <div id="t_btc_price" class="value" style="color:var(--btc-orange)">$...</div>
             <div class="sub-value">Real-time Spot</div>
-            <div class="sparkline-container">
-                <div id="btc-high-val" class="price-label">H: ...</div>
-                <div id="btc-low-val" class="price-label">L: ...</div>
-                <canvas id="btcSparkline"></canvas>
-            </div>
+            <div class="sparkline-container"><canvas id="btcSparkline"></canvas></div>
         </div>
     </div>
 
@@ -249,6 +230,10 @@
 <script>
     let WALLET = localStorage.getItem('ocean_wallet');
     const PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
+    
+    // INTEGRATED GOOGLE WEB APP URL
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzjKGcbtw9phsEDT2hOsDE9zOs8Diq99qf9FLLWEq0wlE75XalcWrivU0f7vva1IaQ5/exec"; 
+
     let histChart, liveChart, btcSparkline;
     let lastWorkers = [];
     let fullHistData = [];
@@ -277,13 +262,6 @@
             const res = await fetch("https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=365&interval=daily");
             const data = await res.json();
             const prices = data.prices.map(p => p[1]);
-            
-            // Populate the High and Low labels
-            const maxPrice = Math.max(...prices);
-            const minPrice = Math.min(...prices);
-            document.getElementById('btc-high-val').innerText = `H: $${Math.round(maxPrice).toLocaleString()}`;
-            document.getElementById('btc-low-val').innerText = `L: $${Math.round(minPrice).toLocaleString()}`;
-
             if (btcSparkline) {
                 btcSparkline.data.labels = prices.map((_, i) => i);
                 btcSparkline.data.datasets[0].data = prices;
@@ -310,12 +288,13 @@
             const block = data.find(b => b.height == height);
             if (block) {
                 const names = block.extras?.pool?.minerNames || [];
-                const finder = names.length > 1 ? names[1] : (names[0] || "OCEAN");
+                // Labeled as "Ocean" if no specific miner template name is found
+                const finder = names.length > 1 ? names[1] : "Ocean";
                 blockFinderCache[height] = finder;
                 return finder;
             }
         } catch(e) {}
-        return "OCEAN";
+        return "Ocean";
     }
 
     function saveLiveToLocal(label, ph, miners) {
@@ -326,14 +305,31 @@
         localStorage.setItem('live_24h_data', JSON.stringify(stored));
     }
 
-    function loadLiveFromLocal() {
-        const stored = JSON.parse(localStorage.getItem('live_24h_data') || '[]');
-        const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
-        const filterTime = (liveRange === 'window' && windowStartTime > 0) ? windowStartTime : twentyFourHoursAgo;
-        const valid = stored.filter(d => d.timestamp > filterTime);
-        liveChart.data.labels = valid.map(d => d.time);
-        liveChart.data.datasets[0].data = valid.map(d => d.ph);
-        liveChart.data.datasets[1].data = valid.map(d => d.miners);
+    async function loadLiveFromLocal() {
+        let history = [];
+        
+        // 1. TRY GOOGLE SHEETS
+        if (GOOGLE_SCRIPT_URL) {
+            try {
+                const res = await fetch(`${GOOGLE_SCRIPT_URL}?wallet=${WALLET}`);
+                const sheetData = await res.json();
+                if (sheetData && sheetData.length > 0) {
+                    history = sheetData;
+                }
+            } catch (e) { console.warn("Google Sheet unreachable, falling back to local."); }
+        }
+
+        // 2. FALLBACK TO LOCAL STORAGE
+        if (history.length === 0) {
+            const stored = JSON.parse(localStorage.getItem('live_24h_data') || '[]');
+            const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+            const filterTime = (liveRange === 'window' && windowStartTime > 0) ? windowStartTime : twentyFourHoursAgo;
+            history = stored.filter(d => d.timestamp > filterTime);
+        }
+
+        liveChart.data.labels = history.map(d => d.time);
+        liveChart.data.datasets[0].data = history.map(d => d.ph);
+        liveChart.data.datasets[1].data = history.map(d => d.miners || 0);
         liveChart.update();
     }
 
@@ -503,7 +499,7 @@
                 document.getElementById('p-height-link').href = `https://mempool.space/block/${mPoolBlocks[0].height}`;
                 document.getElementById('p-full-rwd').innerText = satsToBtc(mPoolBlocks[0].extras?.reward) + " BTC";
                 const names = mPoolBlocks[0].extras?.pool?.minerNames || [];
-                document.getElementById('p-finder').innerText = names.length > 1 ? names[1] : (names[0] || "OCEAN");
+                document.getElementById('p-finder').innerText = names.length > 1 ? names[1] : (names[0] || "Ocean");
             }
             const [hrRes, uRes, pHRRes, blocksRes, earnings, payouts] = await Promise.all([
                 fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
@@ -550,6 +546,7 @@
             document.getElementById('sum-usd-val').innerText = `($${(thirtyDayTotal * btcPrice).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
             renderEarnings(1);
             renderPayouts(1);
+            
             saveLiveToLocal(new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), currentPH, activeCount);
             loadLiveFromLocal();
         } catch (e) { console.error("Update loop error:", e); }
