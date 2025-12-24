@@ -42,7 +42,7 @@
 <div class="container">
     <div class="pool-status">
         <div class="stat-item"><span class="pool-label">Pool Hashrate:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
-        <div class="stat-item"><span class="pool-label">Last Block:</span> <span id="p-height" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Last Block:</span> <a id="p-height-link" class="tx-link" target="_blank" style="font-weight:bold"><span id="p-height">...</span></a></div>
         <div class="stat-item"><span class="pool-label">Pool Reward:</span> <span id="p-full-rwd" style="color:var(--ok)">... BTC</span></div>
         <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
         <div class="stat-item"><span class="pool-label">Blocks in Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
@@ -181,9 +181,11 @@
             const blocksData = await blocksRes.json();
             const mBlocks = await mempoolRes.json();
 
+            // Mempool: Correct Reward and Finder (2nd element)
             if (mBlocks && mBlocks[0]) {
                 const b = mBlocks[0];
                 document.getElementById('p-height').innerText = "#" + b.height;
+                document.getElementById('p-height-link').href = `https://mempool.space/block/${b.height}`;
                 document.getElementById('p-full-rwd').innerText = satsToBtc(b.extras?.reward) + " BTC";
                 const names = b.extras?.pool?.minerNames || [];
                 document.getElementById('p-finder').innerText = names.length > 1 ? names[1] : (names[0] || "OCEAN");
