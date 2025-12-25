@@ -159,7 +159,8 @@
                 <button id="live-btn-24h" class="btn-sm active" onclick="toggleLiveRange('24h')">24H</button>
                 <button id="live-btn-window" class="btn-sm" onclick="toggleLiveRange('window')">WINDOW</button>
             </div>
-            <h3>Live Performance</h3><canvas id="liveChart"></canvas>
+            <h3>Live Performance</h3>
+            <canvas id="liveChart"></canvas>
         </div>
     </div>
 
@@ -231,9 +232,6 @@
     let WALLET = localStorage.getItem('ocean_wallet');
     const PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
     
-    // YOUR GOOGLE WEB APP URL
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzjKGcbtw9phsEDT2hOsDE9zOs8Diq99qf9FLLWEq0wlE75XalcWrivU0f7vva1IaQ5/exec"; 
-
     let histChart, liveChart, btcSparkline;
     let lastWorkers = [];
     let fullHistData = [];
@@ -298,41 +296,22 @@
 
     function saveLiveToLocal(label, ph, miners) {
         let stored = JSON.parse(localStorage.getItem('live_24h_data') || '[]');
-        stored.push({ time: label, ph: parseFloat(ph), miners: parseInt(miners), timestamp: Date.now() });
+        stored.push({ time: label, ph: ph, miners: miners, timestamp: Date.now() });
         const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
         stored = stored.filter(d => d.timestamp > sevenDaysAgo).slice(-10080);
         localStorage.setItem('live_24h_data', JSON.stringify(stored));
     }
 
-    async function loadLiveFromLocal() {
-        let history = [];
+    function loadLiveFromLocal() {
+        const stored = JSON.parse(localStorage.getItem('live_24h_data') || '[]');
+        const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+        const filterTime = (liveRange === 'window' && windowStartTime > 0) ? windowStartTime : twentyFourHoursAgo;
         
-        // 1. ATTEMPT GOOGLE FETCH (FOLLOW REDIRECTS)
-        if (GOOGLE_SCRIPT_URL) {
-            try {
-                const res = await fetch(`${GOOGLE_SCRIPT_URL}?wallet=${WALLET}`, {
-                    method: 'GET',
-                    redirect: 'follow'
-                });
-                const sheetData = await res.json();
-                if (sheetData && sheetData.length > 0) {
-                    history = sheetData;
-                }
-            } catch (e) { console.warn("Google Sheet unreachable. Using Local Fallback."); }
-        }
+        const history = stored.filter(d => d.timestamp > filterTime);
 
-        // 2. FALLBACK TO LOCALSTORAGE
-        if (history.length === 0) {
-            const stored = JSON.parse(localStorage.getItem('live_24h_data') || '[]');
-            const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
-            const filterTime = (liveRange === 'window' && windowStartTime > 0) ? windowStartTime : twentyFourHoursAgo;
-            history = stored.filter(d => d.timestamp > filterTime);
-        }
-
-        // 3. RENDER
         liveChart.data.labels = history.map(d => d.time);
-        liveChart.data.datasets[0].data = history.map(d => parseFloat(d.ph || 0));
-        liveChart.data.datasets[1].data = history.map(d => parseInt(d.miners || 0));
+        liveChart.data.datasets[0].data = history.map(d => d.ph);
+        liveChart.data.datasets[1].data = history.map(d => d.miners || 0);
         liveChart.update();
     }
 
@@ -486,9 +465,13 @@
             const blocksLeft = diffData.nextRetargetHeight - currentTip;
             document.getElementById('t_diff_progress').style.width = diffData.progressPercent.toFixed(1) + '%';
             document.getElementById('t_diff').innerText = `${diffData.difficultyChange > 0 ? '+' : ''}${diffData.difficultyChange.toFixed(2)}%`;
+            
             const remainingMs = diffData.remainingTime;
-            const timeStr = remainingMs < 86400000 ? `${(remainingMs / 3600000).toFixed(1)}h` : `${(remainingMs / 86400000).toFixed(1)}d`;
+            const timeStr = remainingMs < 86400000 
+                ? `${(remainingMs / 3600000).toFixed(1)}h` 
+                : `${(remainingMs / 86400000).toFixed(1)}d`;
             document.getElementById('t_diff_sub').innerText = `${blocksLeft} Blocks left (~${timeStr})`;
+
             const avgTimeMs = diffData.timeAvg, netMin = Math.floor(avgTimeMs / 60000), netSec = Math.floor((avgTimeMs % 60000) / 1000);
             document.getElementById('t_avg_block_time').innerText = `Avg Block: ${netMin}m ${netSec}s`;
             const mPoolBlocks = await mPoolBlocksRes.json();
@@ -508,7 +491,8 @@
                 fetchRecursiveReport('earnings', 100), 
                 fetchRecursiveReport('payouts', 50)
             ]);
-            allEarnings = earnings; allPayouts = payouts;
+            allEarnings = earnings;
+            allPayouts = payouts;
             const u = (await uRes.json()).result || {};
             const pHRData = await pHRRes.json();
             const poolBlocks = (await blocksRes.json()).result?.blocks || [];
@@ -542,19 +526,10 @@
             const thirtyDayTotal = allEarnings.filter(e => new Date(e.TimeUTC) > thirtyDaysAgo).reduce((sum, e) => sum + parseFloat(e.NetUserRwd), 0) / 100000000;
             document.getElementById('sum-btc-val').innerText = thirtyDayTotal.toFixed(8) + " BTC";
             document.getElementById('sum-usd-val').innerText = `($${(thirtyDayTotal * btcPrice).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
-            renderEarnings(1); renderPayouts(1);
+            renderEarnings(1);
+            renderPayouts(1);
             
-            // 1. SAVE TO LOCAL (FALLBACK)
             saveLiveToLocal(new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), currentPH, activeCount);
-            
-            // 2. SEND TO GOOGLE (REDIRECT FOLLOW)
-            if (GOOGLE_SCRIPT_URL) {
-                fetch(`${GOOGLE_SCRIPT_URL}?wallet=${WALLET}&ph=${currentPH}&miners=${activeCount}`, { 
-                    mode: 'no-cors',
-                    redirect: 'follow'
-                });
-            }
-
             loadLiveFromLocal();
         } catch (e) { console.error("Update loop error:", e); }
     }
