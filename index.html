@@ -496,14 +496,35 @@
             const u = (await uRes.json()).result || {};
             const pHRData = await pHRRes.json();
             const poolBlocks = (await blocksRes.json()).result?.blocks || [];
-            const poolEH = parseFloat(pHRData.result?.pool_300s || 0) / 1e18;
-            document.getElementById('p-hr').innerText = poolEH.toFixed(2) + " EH/s";
-            document.getElementById('t_ocean_avg_block').innerText = `Pool Block: ~${((netPH / (poolEH * 1000)) * (10 / 60)).toFixed(1)}h`;
-            const sharelog = parseFloat(poolBlocks[0]?.sharelog_window || 0);
-            let k = 0, cum = 0;
-            for (const b of poolBlocks) { cum += parseFloat(b.accepted_shares || 0); k++; if (cum >= sharelog) break; }
-            if(poolBlocks[k-1]) windowStartTime = poolBlocks[k-1].timestamp * 1000;
-            document.getElementById('p-blocks').innerText = k;
+            
+            // --- CORRECTED TIDES WINDOW CALCULATION BASED ON TIME DURATION ---
+            // TIDES window is a fixed "length of time" for the pool to meet the required share count.
+            const poolEH = parseFloat(pHRData.result?.pool_300s || 0); // Pool hashrate in H/s
+            const sharelog_target = parseFloat(poolBlocks[0]?.sharelog_window || 0); // Total shares for the window
+            
+            // Time to find shares = (Target Shares * 2^32) / Hashrate
+            // windowTimeSec is how long it takes the WHOLE pool to satisfy the window requirement.
+            const windowTimeSec = (sharelog_target * Math.pow(2, 32)) / poolEH;
+            const nowSec = Date.now() / 1000;
+            const windowStartTimestamp = nowSec - windowTimeSec;
+            windowStartTime = windowStartTimestamp * 1000; // For chart filtering
+
+            // Count blocks that fall within the last windowTimeSec from NOW
+            let blocksInCurrentWindow = 0;
+            for (const b of poolBlocks) {
+                const blockTime = Date.parse(b.ts) / 1000;
+                if (blockTime >= windowStartTimestamp) {
+                    blocksInCurrentWindow++;
+                } else {
+                    break; // Blocks are sorted by time, stop once we go outside the window
+                }
+            }
+            document.getElementById('p-blocks').innerText = blocksInCurrentWindow;
+            // ------------------------------------------------------------------
+
+            document.getElementById('p-hr').innerText = (poolEH / 1e18).toFixed(2) + " EH/s";
+            document.getElementById('t_ocean_avg_block').innerText = `Pool Block: ~${((netPH / ((poolEH / 1e18) * 1000)) * (10 / 60)).toFixed(1)}h`;
+            
             document.getElementById('t_unpaid').innerText = parseFloat(u.unpaid||0).toFixed(8);
             document.getElementById('t_usd').innerText = "$" + (parseFloat(u.unpaid||0) * btcPrice).toFixed(2);
             document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block||0).toFixed(8);
@@ -514,30 +535,30 @@
                 const s = ws[n][0], curH = parseFloat(s.hashrate_300s);
                 t5 += curH; t3 += parseFloat(s.hashrate_10800s); t24 += parseFloat(s.hashrate_86400s);
                 if(curH > 0) activeCount++; else deadCount++;
-                return { name: n, h5: curH/1e12, h3: s.hashrate_10800s/1e12, h24: s.hashrate_86400s/1e12, status: curH>0?'ACTIVE':'INACTIVE', statusWeight: curH>0?1:0 };
+                return { name: n, h5: curH/1e12, h3: parseFloat(s.hashrate_10800s)/1e12, h24: parseFloat(s.hashrate_86400s)/1e12, status: curH > 0 ? 'ACTIVE' : 'INACTIVE', statusWeight: curH > 0 ? 1 : 0 };
             });
+            document.getElementById('t_hr').innerText = (t5 / 1e15).toFixed(2) + " PH/s";
+            document.getElementById('t_hr_avg').innerText = `24h Avg: ${(t24 / 1e15).toFixed(2)} PH/s`;
             document.getElementById('miner-active').innerText = activeCount;
             document.getElementById('miner-dead').innerText = deadCount;
-            renderWorkers(1);
-            const currentPH = (t5/1e15).toFixed(2);
-            document.getElementById('t_hr').innerText = currentPH + " PH/s";
-            document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
-            const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-            const thirtyDayTotal = allEarnings.filter(e => new Date(e.TimeUTC) > thirtyDaysAgo).reduce((sum, e) => sum + parseFloat(e.NetUserRwd), 0) / 100000000;
-            document.getElementById('sum-btc-val').innerText = thirtyDayTotal.toFixed(8) + " BTC";
-            document.getElementById('sum-usd-val').innerText = `($${(thirtyDayTotal * btcPrice).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
-            renderEarnings(1);
-            renderPayouts(1);
-            
-            saveLiveToLocal(new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), currentPH, activeCount);
+            renderWorkers(1); renderEarnings(1); renderPayouts(1);
+            saveLiveToLocal(new Date().toLocaleTimeString(), (t5 / 1e15).toFixed(2), activeCount);
             loadLiveFromLocal();
-        } catch (e) { console.error("Update loop error:", e); }
+            const e30 = getBtcSum(30);
+            document.getElementById('sum-btc-val').innerText = e30.toFixed(8) + " BTC";
+            document.getElementById('sum-usd-val').innerText = `($${(e30 * btcPrice).toLocaleString()})`;
+        } catch (e) { console.error("Update Error:", e); }
     }
 
-    function init() {
+    function getBtcSum(days) {
+        const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+        return allEarnings.reduce((acc, e) => (new Date(e.TimeUTC) > cutoff ? acc + parseFloat(e.NetUserRwd) : acc), 0) / 100000000;
+    }
+
+    window.onload = async () => {
         histChart = new Chart(document.getElementById('histChart').getContext('2d'), { 
             type: 'line', 
-            data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, pointRadius: 1 }] }, 
+            data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', borderWidth: 2, tension: 0.1, backgroundColor: 'rgba(88,166,255,0.1)', fill: true, pointRadius: 1 }] }, 
             options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: false } } } 
         });
         liveChart = new Chart(document.getElementById('liveChart').getContext('2d'), { 
@@ -551,11 +572,10 @@
         btcSparkline = new Chart(document.getElementById('btcSparkline').getContext('2d'), {
             type: 'line',
             data: { labels: [], datasets: [{ data: [], borderColor: '#F7931A', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(247, 147, 26, 0.1)', tension: 0.3 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
         });
-        if (WALLET) { loadLiveFromLocal(); fetchDeepHistory(); fetchBtcSparkline(); update(); setInterval(update, 60000); }
-    }
-    init();
+        if(WALLET) { update(); fetchDeepHistory(); fetchBtcSparkline(); setInterval(update, 60000); }
+    };
 </script>
 </body>
 </html>
