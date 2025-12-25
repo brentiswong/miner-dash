@@ -307,16 +307,21 @@
     async function loadLiveFromLocal() {
         let history = [];
         
+        // 1. ATTEMPT GOOGLE FETCH (FOLLOW REDIRECTS)
         if (GOOGLE_SCRIPT_URL) {
             try {
-                const res = await fetch(`${GOOGLE_SCRIPT_URL}?wallet=${WALLET}`);
+                const res = await fetch(`${GOOGLE_SCRIPT_URL}?wallet=${WALLET}`, {
+                    method: 'GET',
+                    redirect: 'follow'
+                });
                 const sheetData = await res.json();
                 if (sheetData && sheetData.length > 0) {
                     history = sheetData;
                 }
-            } catch (e) { console.warn("Google Sheet unreachable or empty."); }
+            } catch (e) { console.warn("Google Sheet unreachable. Using Local Fallback."); }
         }
 
+        // 2. FALLBACK TO LOCALSTORAGE
         if (history.length === 0) {
             const stored = JSON.parse(localStorage.getItem('live_24h_data') || '[]');
             const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
@@ -324,6 +329,7 @@
             history = stored.filter(d => d.timestamp > filterTime);
         }
 
+        // 3. RENDER
         liveChart.data.labels = history.map(d => d.time);
         liveChart.data.datasets[0].data = history.map(d => parseFloat(d.ph || 0));
         liveChart.data.datasets[1].data = history.map(d => parseInt(d.miners || 0));
@@ -446,7 +452,7 @@
             const earningsAll = await fetchRecursiveReport('earnings', 200);
             const getBtcSum = (days) => {
                 const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
-                return earningsAll.reduce((acc, e) => (new Date(e.TimeUTC) > cutoff ? acc + parseFloat(e.NetUserRwd || 0) : acc), 0) / 100000000;
+                return earningsAll.reduce((acc, e) => (new Date(e.TimeUTC) > cutoff ? acc + parseFloat(e.NetUserRwd) : acc), 0) / 100000000;
             };
             const ph30 = calcPH(30), btc30 = getBtcSum(30);
             const ph60 = calcPH(60), btc60 = getBtcSum(60);
@@ -476,22 +482,15 @@
             const netPH = netHrData.currentHashrate / 1e15;
             const avgBlockRewardBTC = lastBlocks.reduce((acc, b) => acc + (b.extras.reward / 1e8), 0) / lastBlocks.length;
             document.getElementById('t_hashprice').innerText = `$${(((144 * avgBlockRewardBTC) / netPH) * btcPrice).toFixed(2)}`;
-            
-            const diffData = await diffRes.json();
-            const currentTip = await tipRes.json();
+            const diffData = await diffRes.json(), currentTip = await tipRes.json();
             const blocksLeft = diffData.nextRetargetHeight - currentTip;
             document.getElementById('t_diff_progress').style.width = diffData.progressPercent.toFixed(1) + '%';
             document.getElementById('t_diff').innerText = `${diffData.difficultyChange > 0 ? '+' : ''}${diffData.difficultyChange.toFixed(2)}%`;
-            
             const remainingMs = diffData.remainingTime;
-            const timeStr = remainingMs < 86400000 
-                ? `${(remainingMs / 3600000).toFixed(1)}h` 
-                : `${(remainingMs / 86400000).toFixed(1)}d`;
+            const timeStr = remainingMs < 86400000 ? `${(remainingMs / 3600000).toFixed(1)}h` : `${(remainingMs / 86400000).toFixed(1)}d`;
             document.getElementById('t_diff_sub').innerText = `${blocksLeft} Blocks left (~${timeStr})`;
-
             const avgTimeMs = diffData.timeAvg, netMin = Math.floor(avgTimeMs / 60000), netSec = Math.floor((avgTimeMs % 60000) / 1000);
             document.getElementById('t_avg_block_time').innerText = `Avg Block: ${netMin}m ${netSec}s`;
-            
             const mPoolBlocks = await mPoolBlocksRes.json();
             if (mPoolBlocks && mPoolBlocks[0]) {
                 lastBlockTime = mPoolBlocks[0].timestamp;
@@ -509,8 +508,7 @@
                 fetchRecursiveReport('earnings', 100), 
                 fetchRecursiveReport('payouts', 50)
             ]);
-            allEarnings = earnings;
-            allPayouts = payouts;
+            allEarnings = earnings; allPayouts = payouts;
             const u = (await uRes.json()).result || {};
             const pHRData = await pHRRes.json();
             const poolBlocks = (await blocksRes.json()).result?.blocks || [];
@@ -537,24 +535,24 @@
             document.getElementById('miner-active').innerText = activeCount;
             document.getElementById('miner-dead').innerText = deadCount;
             renderWorkers(1);
-            const currentPH = parseFloat((t5/1e15).toFixed(2));
+            const currentPH = (t5/1e15).toFixed(2);
             document.getElementById('t_hr').innerText = currentPH + " PH/s";
             document.getElementById('t_hr_avg').innerText = `${(t3/1e15).toFixed(2)} / ${(t24/1e15).toFixed(2)} PH/s`;
-            
             const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-            const thirtyDayTotal = allEarnings.filter(e => new Date(e.TimeUTC) > thirtyDaysAgo).reduce((sum, e) => sum + parseFloat(e.NetUserRwd || 0), 0) / 100000000;
+            const thirtyDayTotal = allEarnings.filter(e => new Date(e.TimeUTC) > thirtyDaysAgo).reduce((sum, e) => sum + parseFloat(e.NetUserRwd), 0) / 100000000;
             document.getElementById('sum-btc-val').innerText = thirtyDayTotal.toFixed(8) + " BTC";
             document.getElementById('sum-usd-val').innerText = `($${(thirtyDayTotal * btcPrice).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
+            renderEarnings(1); renderPayouts(1);
             
-            renderEarnings(1);
-            renderPayouts(1);
-            
-            // 1. SAVE TO LOCAL (Backup)
+            // 1. SAVE TO LOCAL (FALLBACK)
             saveLiveToLocal(new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), currentPH, activeCount);
             
-            // 2. SEND TO GOOGLE SHEET (Master History)
+            // 2. SEND TO GOOGLE (REDIRECT FOLLOW)
             if (GOOGLE_SCRIPT_URL) {
-                fetch(`${GOOGLE_SCRIPT_URL}?wallet=${WALLET}&ph=${currentPH}&miners=${activeCount}`, { mode: 'no-cors' });
+                fetch(`${GOOGLE_SCRIPT_URL}?wallet=${WALLET}&ph=${currentPH}&miners=${activeCount}`, { 
+                    mode: 'no-cors',
+                    redirect: 'follow'
+                });
             }
 
             loadLiveFromLocal();
