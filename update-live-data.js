@@ -2,18 +2,23 @@ const fs = require('fs');
 const https = require('https');
 
 const WALLET = process.env.WALLET || '';
-const PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
+const BASE_URL = 'https://api.ocean.xyz/v1/';
 
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
     https.get(url, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        // Handle redirect manually
+        console.log('Redirect to:', res.headers.location);
+        return fetchJson(res.headers.location).then(resolve).catch(reject);
+      }
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
         try {
           resolve(JSON.parse(data));
         } catch (e) {
-          reject(new Error(`Invalid JSON: ${data.substring(0, 200)}`));
+          reject(new Error(`Invalid JSON response: ${data.substring(0, 200)}...`));
         }
       });
     }).on('error', reject);
@@ -24,23 +29,22 @@ async function updateLiveData() {
   console.log('Starting update for wallet:', WALLET || 'NOT SET');
 
   if (!WALLET) {
-    console.error('ERROR: WALLET secret missing!');
+    console.error('ERROR: WALLET secret not set');
     return;
   }
 
   try {
-    const hrUrl = PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`);
-    console.log('Fetching:', hrUrl.substring(0, 80) + '...');
-    const hrData = await fetchJson(hrUrl);
+    console.log('Fetching hashrate data...');
+    const hrData = await fetchJson(`${BASE_URL}user_hashrate_full/${WALLET}`);
     console.log('Hashrate data received');
 
-    const statsUrl = PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`);
-    const statsData = await fetchJson(statsUrl);
+    console.log('Fetching statsnap...');
+    const statsData = await fetchJson(`${BASE_URL}statsnap/${WALLET}`);
     console.log('Statsnap data received');
 
     const ws = hrData.result?.workers || {};
     let t5 = 0, activeCount = 0;
-    
+
     Object.keys(ws).forEach(n => {
       const s = ws[n][0];
       const curH = parseFloat(s?.hashrate_300s || 0);
@@ -61,7 +65,6 @@ async function updateLiveData() {
 
     data.push({ time: label, ph: parseFloat(ph), miners: activeCount, timestamp });
 
-    // Prune old data (7 days)
     const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
     data = data.filter(d => d.timestamp > sevenDaysAgo).slice(-10080);
 
