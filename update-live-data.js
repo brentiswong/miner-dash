@@ -1,5 +1,5 @@
 const fs = require('fs');
-const fetch = require('node-fetch'); // This is crucial!
+const fetch = require('node-fetch'); // ← This line was missing or not working
 
 const WALLET = process.env.WALLET;
 const PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
@@ -11,12 +11,10 @@ async function updateLiveData() {
     console.log('Fetching user hashrate...');
     const hrRes = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`));
     console.log('HR response status:', hrRes.status);
-    if (!hrRes.ok) throw new Error(`HR fetch failed: ${hrRes.status}`);
 
     console.log('Fetching statsnap...');
     const uRes = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`));
     console.log('Statsnap response status:', uRes.status);
-    if (!uRes.ok) throw new Error(`Statsnap fetch failed: ${uRes.status}`);
 
     const u = (await uRes.json()).result || {};
     const ws = (await hrRes.json()).result?.workers || {};
@@ -39,10 +37,7 @@ async function updateLiveData() {
     let data = [];
     if (fs.existsSync('live_data.json')) {
       console.log('Reading existing live_data.json');
-      const content = fs.readFileSync('live_data.json', 'utf8');
-      data = JSON.parse(content);
-    } else {
-      console.log('No existing live_data.json - starting new array');
+      data = JSON.parse(fs.readFileSync('live_data.json', 'utf8'));
     }
 
     data.push({ time: label, ph, miners: activeCount, timestamp });
@@ -50,9 +45,9 @@ async function updateLiveData() {
     const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
     data = data.filter(d => d.timestamp > sevenDaysAgo).slice(-10080);
 
-    console.log('Writing to live_data.json - new entry count:', data.length);
+    console.log('Writing to live_data.json');
     fs.writeFileSync('live_data.json', JSON.stringify(data, null, 2));
-    console.log('File written successfully');
+    console.log('Success: File updated');
   } catch (e) {
     console.error('Error in update script:', e.message);
     console.error(e.stack);
