@@ -1,9 +1,12 @@
 name: Update Live Data
 
+permissions:
+  contents: write  # This is crucial for push
+
 on:
   schedule:
     - cron: '* * * * *'
-  workflow_dispatch:  # Allows manual run from Actions tab
+  workflow_dispatch:  # Lets you run manually
 
 jobs:
   update:
@@ -11,26 +14,24 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}  # Auto-provided for commits
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'  # Or your preferred version
+          node-version: '20'
 
       - name: Install dependencies
-        run: npm install node-fetch  # If needed; script uses built-ins + fetch
+        run: npm install node-fetch
 
       - name: Run update script
         env:
-          WALLET: ${{ secrets.WALLET }}  # Your BTC wallet address as a secret
-        run: node update-live-data.js  # Adjust path if in scripts/
+          WALLET: ${{ secrets.WALLET }}
+        run: node update-live-data.js
 
       - name: Commit and push changes
         run: |
           git config --global user.name 'GitHub Action'
           git config --global user.email 'action@github.com'
           git add live_data.json
-          git commit -m 'Update live performance data' || echo "No changes to commit"
+          git commit -m 'Update live performance data' --allow-empty || echo "No changes to commit"
           git push
