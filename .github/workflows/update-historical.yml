@@ -1,0 +1,29 @@
+name: Update Historical Data
+
+permissions:
+  contents: write
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Every day at 2:00 AM UTC (adjust as needed)
+  workflow_dispatch:     # Manual trigger
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run historical update script
+        env:
+          WALLET: ${{ secrets.WALLET }}
+        run: node update-historical.js
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name 'GitHub Action'
+          git config --global user.email 'action@github.com'
+          git add historical_data.json
+          git commit -m 'Update historical data' --allow-empty || echo "No changes to commit"
+          git pull --rebase origin main
+          git push origin main
