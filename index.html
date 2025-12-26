@@ -2,195 +2,569 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NGU TECH - Status Restored</title>
+    <title>NGU TECH - Pro BTC Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --accent: #58a6ff; --border: #30363d; --ok: #3fb950; --err: #f85149; --warn: #d29922; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
+        :root { 
+            --bg: #0d1117; 
+            --card: #161b22; 
+            --text: #c9d1d9; 
+            --accent: #58a6ff; 
+            --border: #30363d; 
+            --ok: #3fb950; 
+            --dead: #f85149; 
+            --btc-orange: #F7931A; 
+            --progress-unfilled: #1c2128;
+        }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; padding-bottom: 80px; }
         .container { max-width: 1200px; margin: auto; }
-        
         #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-        .login-card { background: var(--card); padding: 30px; border-radius: 12px; border: 1px solid var(--border); text-align: center; width: 90%; max-width: 400px; }
-        input { width: 100%; padding: 12px; margin: 15px 0; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 6px; box-sizing: border-box; }
-        button { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; }
-
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 25px; }
-        .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; }
-        .label { font-size: 0.8rem; color: #8b949e; text-transform: uppercase; font-weight: 600; }
-        .value { font-size: 1.8rem; font-weight: bold; color: white; margin-top: 8px; }
-        .sub-value { font-size: 0.85rem; color: var(--accent); margin-top: 5px; }
-
-        .chart-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 25px; height: 450px; }
+        .pool-status { background: #1c2128; border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; flex-wrap: wrap; gap: 10px; }
+        .pool-label { color: #8b949e; text-transform: uppercase; font-size: 0.65rem; font-weight: 700; }
         
-        .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-        table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 15px; background: #1c2128; color: #8b949e; font-size: 0.75rem; text-transform: uppercase; }
-        td { padding: 15px; border-bottom: 1px solid var(--border); font-family: monospace; font-size: 0.9rem; }
+        .grid-top { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 15px; }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+        @media (max-width: 900px) { .grid-top, .grid-4 { grid-template-columns: 1fr; } }
+        
+        .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 8px; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+        .price-card { border-left: 4px solid var(--btc-orange); }
+        
+        .sparkline-container { position: absolute; bottom: 0; left: 0; width: 100%; height: 50px; pointer-events: none; opacity: 0.4; }
+        .label { font-size: 0.65rem; color: #8b949e; text-transform: uppercase; font-weight: 700; }
+        .value { font-size: 1.5rem; font-weight: 800; color: white; margin-top: 5px; z-index: 1; }
+        .sub-value { font-size: 0.8rem; margin-top: 4px; opacity: 0.8; z-index: 1; }
 
-        /* Status Colors */
-        .status-online { color: var(--ok); font-weight: bold; }
-        .status-offline { color: var(--err); font-weight: bold; }
-        .logout { float: right; color: var(--err); cursor: pointer; font-size: 0.75rem; font-weight: bold; padding: 10px; }
+        .progress-bg { width: 100%; height: 8px; background: var(--progress-unfilled); border-radius: 10px; margin-top: 10px; overflow: hidden; border: 1px solid var(--border); }
+        .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.8s ease; }
+        
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        @media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
+        .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; height: 320px; position: relative; }
+        .controls { position: absolute; top: 10px; right: 15px; z-index: 10; display: flex; gap: 5px; }
+        .btn-sm { background: #30363d; color: white; border: none; padding: 4px 8px; border-radius: 3px; font-size: 0.65rem; cursor: pointer; }
+        .btn-sm.active { background: var(--accent); }
+        
+        .table-container { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 25px; }
+        table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; table-layout: fixed; }
+        th { text-align: left; padding: 12px; background: #1c2128; color: #8b949e; font-size: 0.7rem; text-transform: uppercase; cursor: pointer; user-select: none; transition: background 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        th:hover { background: #30363d; color: white; }
+        th.active-sort { color: var(--accent); }
+        td { padding: 12px; border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .miner-col-name { width: 30%; }
+        .miner-col-stat { width: 17.5%; }
+        .earn-col-date { width: 25%; }
+        .earn-col-block { width: 20%; }
+        .earn-col-find { width: 30%; }
+        .earn-col-btc { width: 25%; }
+        .pay-col-date { width: 25%; }
+        .pay-col-amt { width: 25%; }
+        .pay-col-tx { width: 50%; }
+
+        .table-header-flex { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            background: #1c2128; 
+            padding-right: 15px;
+            border-bottom: 1px solid var(--border); 
+        }
+        h3 { font-size: 0.85rem; color: var(--accent); padding: 15px; margin: 0; text-transform: uppercase; }
+        .summary-inline { font-size: 0.85rem; font-weight: bold; font-family: monospace; }
+        .sum-30d { color: var(--accent); }
+        .sum-btc { color: var(--btc-orange); }
+        .sum-usd { color: var(--ok); }
+
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 15px; padding: 10px; background: #1c2128; font-size: 0.75rem; border-top: 1px solid var(--border); }
+        .pagination button { background: #30363d; color: white; border: none; padding: 4px 10px; border-radius: 3px; cursor: pointer; }
+        .pagination button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        .search-input { width: 100%; max-width: 300px; padding: 8px; margin: 10px 15px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 4px; }
+        .tables-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        @media (max-width: 900px) { .tables-grid { grid-template-columns: 1fr; } }
+        a.tx-link { color: var(--accent); text-decoration: none; }
+        a.tx-link:hover { text-decoration: underline; }
+        
+        .address-footer { position: fixed; bottom: 0; left: 0; width: 100%; background: #1c2128; border-top: 1px solid var(--border); padding: 12px; display: flex; justify-content: center; align-items: center; gap: 10px; z-index: 999; }
+        .address-footer input { background: var(--bg); border: 1px solid var(--border); color: white; padding: 8px 12px; border-radius: 4px; width: 100%; max-width: 400px; font-family: monospace; }
+        .address-footer button { background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div id="auth-overlay">
-    <div class="login-card">
-        <h2>Miner Access</h2>
-        <input type="text" id="wallet-input" placeholder="Wallet Address (bc1q...)">
-        <button onclick="login()">Launch Dashboard</button>
+<div id="auth-overlay"><div style="text-align:center"><h2>NGU TECH</h2><input type="text" id="wallet-input-main" placeholder="BTC Address"><br><br><button onclick="login('main')" style="background:var(--accent);color:white;padding:10px 20px;border:none;border-radius:4px;cursor:pointer">Sync</button></div></div>
+
+<div class="container">
+    <div class="pool-status">
+        <div class="stat-item"><span class="pool-label">Pool Hashrate:</span> <span id="p-hr" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Last Block:</span> <a id="p-height-link" class="tx-link" target="_blank" style="font-weight:bold"><span id="p-height">...</span></a></div>
+        <div class="stat-item"><span class="pool-label">Since Found:</span> <span id="p-since" style="color:var(--btc-orange); font-weight:bold">...</span></div>
+        <div class="stat-item"><span class="pool-label">Pool Reward:</span> <span id="p-full-rwd" style="color:var(--ok)">... BTC</span></div>
+        <div class="stat-item"><span class="pool-label">Finder:</span> <span id="p-finder" style="color:var(--accent)">...</span></div>
+        <div class="stat-item"><span class="pool-label">Blocks In Window:</span> <span id="p-blocks" style="color:var(--accent)">...</span></div>
+    </div>
+
+    <div class="grid-top">
+        <div class="card"><div class="label">Total Hashrate</div><div id="t_hr" class="value">0.00 PH/s</div><div id="t_hr_avg" class="sub-value" style="color:var(--accent)">...</div></div>
+        <div class="card">
+            <div class="label">Miner Status</div>
+            <div class="value">
+                <span id="miner-active" style="color:var(--ok)">0</span> <span style="color:#8b949e; font-size: 1rem;">Active</span>
+            </div>
+            <div class="sub-value" style="color:var(--dead); font-weight:bold;">
+                <span id="miner-dead">0</span> Inactive
+            </div>
+        </div>
+        <div class="card"><div class="label">Unpaid (BTC)</div><div id="t_unpaid" class="value">0.00000000</div><div id="t_usd" class="sub-value" style="color:var(--ok)">...</div></div>
+        <div class="card"><div class="label">Est. Next Block</div><div id="t_est" class="value">0.00000000</div><div id="t_est_usd" class="sub-value" style="color:var(--ok)">...</div></div>
+    </div>
+
+    <div class="grid-4">
+        <div class="card"><div class="label">Global $/PH (24H)</div><div id="t_hashprice" class="value">...</div><div id="t_hashprice_sub" class="sub-value">Network Average</div></div>
+        <div class="card">
+            <div class="label">Ocean $/PH (30/60/90D)</div>
+            <div id="t_hashprice_ocean" class="value">...</div>
+            <div id="t_ocean_avg_block" class="sub-value" style="color:var(--accent); font-weight:bold; margin-bottom: 2px;">Pool Block: ...</div>
+            <div id="t_hashprice_ocean_sub" class="sub-value" style="color:var(--ok)">...</div>
+        </div>
+        <div class="card">
+            <div class="label">Difficulty Adjustment</div>
+            <div id="t_diff" class="value">...</div>
+            <div class="progress-bg"><div id="t_diff_progress" class="progress-fill"></div></div>
+            <div id="t_avg_block_time" class="sub-value" style="color:var(--btc-orange); font-weight:bold; margin-top:8px;">Avg Block: ...</div>
+            <div id="t_diff_sub" class="sub-value" style="margin-top:2px;">...</div>
+        </div>
+        <div class="card price-card">
+            <div class="label">BTC Price</div>
+            <div id="t_btc_price" class="value" style="color:var(--btc-orange)">$...</div>
+            <div class="sub-value">Real-time Spot</div>
+            <div class="sparkline-container"><canvas id="btcSparkline"></canvas></div>
+        </div>
+    </div>
+
+    <div class="chart-grid">
+        <div class="chart-box">
+            <div class="controls">
+                <button class="btn-sm" onclick="filterHist(7)">1W</button>
+                <button class="btn-sm" onclick="filterHist(30)">1M</button>
+                <button class="btn-sm" onclick="filterHist(180)">6M</button>
+                <button class="btn-sm" onclick="filterHist(365)">1Y</button>
+                <button class="btn-sm" onclick="filterHist(730)">2Y</button>
+                <button class="btn-sm active" onclick="filterHist(0)">ALL</button>
+            </div>
+            <h3>Historical Hashrate</h3><canvas id="histChart"></canvas>
+        </div>
+        <div class="chart-box">
+            <div class="controls">
+                <button id="live-btn-24h" class="btn-sm active" onclick="toggleLiveRange('24h')">24H</button>
+                <button id="live-btn-window" class="btn-sm" onclick="toggleLiveRange('window')">WINDOW</button>
+            </div>
+            <h3>Live Performance</h3>
+            <canvas id="liveChart"></canvas>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <h3>Miner Status</h3>
+        <input type="text" id="miner-search" class="search-input" placeholder="Search miners..." onkeyup="renderWorkers(1)">
+        <table>
+            <thead>
+                <tr id="miner-headers">
+                    <th class="miner-col-name" data-key="name" onclick="setSort('name')">Name <span>↕</span></th>
+                    <th class="miner-col-stat" data-key="h5" onclick="setSort('h5')">5m (TH) <span>↕</span></th>
+                    <th class="miner-col-stat" data-key="h3" onclick="setSort('h3')">3h (TH) <span>↕</span></th>
+                    <th class="miner-col-stat" data-key="h24" onclick="setSort('h24')">24h (TH) <span>↕</span></th>
+                    <th class="miner-col-stat" data-key="statusWeight" onclick="setSort('statusWeight')">Status <span>↕</span></th>
+                </tr>
+            </thead>
+            <tbody id="worker-table"></tbody>
+        </table>
+        <div class="pagination" id="miner-pagination"></div>
+    </div>
+
+    <div class="tables-grid">
+        <div class="table-container">
+            <div class="table-header-flex">
+                <h3>Recent Earnings</h3>
+                <div class="summary-inline">
+                    <span class="sum-30d">30D:</span> 
+                    <span id="sum-btc-val" class="sum-btc">0.00000000 BTC</span> 
+                    <span id="sum-usd-val" class="sum-usd">($0.00)</span>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th class="earn-col-date">Date</th>
+                        <th class="earn-col-block">Block</th>
+                        <th class="earn-col-find">Finder</th>
+                        <th class="earn-col-btc">Net BTC</th>
+                    </tr>
+                </thead>
+                <tbody id="earnings-table"></tbody>
+            </table>
+            <div class="pagination" id="earnings-pagination"></div>
+        </div>
+        <div class="table-container">
+            <h3>Recent Payouts</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th class="pay-col-date">Date</th>
+                        <th class="pay-col-amt">Amount</th>
+                        <th class="pay-col-tx">TXID</th>
+                    </tr>
+                </thead>
+                <tbody id="payouts-table"></tbody>
+            </table>
+            <div class="pagination" id="payouts-pagination"></div>
+        </div>
     </div>
 </div>
 
-<div class="container">
-    <div style="overflow: auto;"><span class="logout" onclick="logout()">LOGOUT & CLEAR</span></div>
-    <div class="grid">
-        <div class="card">
-            <div class="label">Live Hashrate</div>
-            <div id="t_hr" class="value">0.00 TH/s</div>
-            <div id="t_hr_avg" class="sub-value">Averages: 3h: ... | 24h: ...</div>
-        </div>
-        <div class="card">
-            <div class="label">Unpaid Balance</div>
-            <div id="t_unpaid" class="value">0.00 BTC</div>
-            <div id="t_usd" class="sub-value" style="color: var(--ok);">$0.00 USD</div>
-        </div>
-        <div class="card">
-            <div class="label">BTC Price</div>
-            <div id="btc_price" class="value">...</div>
-            <div class="sub-value">Coinbase Live</div>
-        </div>
-    </div>
-
-    <div class="chart-container"><canvas id="hashrateChart"></canvas></div>
-
-    <div class="table-container">
-        <table>
-            <thead><tr><th>Worker</th><th>5m</th><th>3h</th><th>24h</th><th>Status</th></tr></thead>
-            <tbody id="w-body"></tbody>
-        </table>
-    </div>
+<div class="address-footer">
+    <span class="pool-label">Mining Address:</span>
+    <input type="text" id="wallet-input-footer" placeholder="Change BTC Address...">
+    <button onclick="login('footer')">Update</button>
 </div>
 
 <script>
     let WALLET = localStorage.getItem('ocean_wallet');
-    const PROXY = 'https://api.allorigins.win/raw?url=';
-    const OCEAN_API = 'https://api.ocean.xyz/v1';
-    let chart;
+    const PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
+    
+    let histChart, liveChart, btcSparkline;
+    let lastWorkers = [];
+    let fullHistData = [];
+    let allEarnings = [];
+    let allPayouts = [];
+    let currentSort = { key: 'name', asc: true };
+    let blockFinderCache = {}; 
+    let lastBlockTime = 0;
+    let windowStartTime = 0;
+    let liveRange = '24h';
 
-    function formatHashrate(hps) {
-        if (!hps || hps <= 0) return { v: 0, u: "TH/s" };
-        if (hps >= 1e21) return { v: (hps/1e21).toFixed(2), u: "EH/s" };
-        if (hps >= 1e18) return { v: (hps/1e18).toFixed(2), u: "PH/s" };
-        return { v: (hps/1e12).toFixed(2), u: "TH/s" };
+    const satsToBtc = (sats) => (parseFloat(sats || 0) / 100000000).toFixed(8);
+
+    function login(source) { 
+        const id = source === 'main' ? 'wallet-input-main' : 'wallet-input-footer';
+        const v = document.getElementById(id).value.trim(); 
+        if(v) { 
+            localStorage.setItem('ocean_wallet', v); 
+            location.reload(); 
+        } 
     }
 
-    function login() {
-        const val = document.getElementById('wallet-input').value.trim();
-        if(val) { localStorage.setItem('ocean_wallet', val); location.reload(); }
-    }
-
-    function logout() { localStorage.clear(); location.reload(); }
-
-    function initChart() {
-        const saved = JSON.parse(localStorage.getItem('miner_history_v8') || '{"labels":[], "h5":[], "h3":[], "h24":[], "u": "TH/s"}');
-        const ctx = document.getElementById('hashrateChart').getContext('2d');
-        chart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: saved.labels,
-                datasets: [
-                    { label: '5m Hashrate', data: saved.h5, borderColor: '#58a6ff', backgroundColor: 'rgba(88, 166, 255, 0.1)', fill: true, tension: 0.3 },
-                    { label: '3h Hashrate', data: saved.h3, borderColor: '#d29922', fill: false, borderWidth: 2, pointRadius: 0 },
-                    { label: '24h Hashrate', data: saved.h24, borderColor: '#3fb950', borderDash: [5, 5], fill: false, borderWidth: 2, pointRadius: 0 }
-                ]
-            },
-            options: { 
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { display: true, labels: { color: '#8b949e' } } },
-                scales: { 
-                    y: { beginAtZero: true, grid: { color: '#30363d' }, title: { display: true, text: 'Hashrate (' + (saved.u || 'TH/s') + ')', color: '#8b949e' }, ticks: { color: '#8b949e' } },
-                    x: { ticks: { color: '#8b949e' }, grid: { display: false } }
-                }
+    async function fetchBtcSparkline() {
+        try {
+            const res = await fetch("https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=365&interval=daily");
+            const data = await res.json();
+            const prices = data.prices.map(p => p[1]);
+            if (btcSparkline) {
+                btcSparkline.data.labels = prices.map((_, i) => i);
+                btcSparkline.data.datasets[0].data = prices;
+                btcSparkline.update();
             }
+        } catch(e) { console.error("Sparkline error:", e); }
+    }
+
+    function updateSinceTimer() {
+        if (!lastBlockTime) return;
+        const diff = Math.floor((Date.now() / 1000) - lastBlockTime);
+        const h = Math.floor(diff / 3600);
+        const m = Math.floor((diff % 3600) / 60);
+        const s = diff % 60;
+        document.getElementById('p-since').innerText = `${h > 0 ? h + 'h ' : ''}${m}m ${s}s`;
+    }
+    setInterval(updateSinceTimer, 1000);
+
+    async function getFinder(height) {
+        if (blockFinderCache[height]) return blockFinderCache[height];
+        try {
+            const res = await fetch(`https://mempool.space/api/v1/mining/pool/ocean/blocks`);
+            const data = await res.json();
+            const block = data.find(b => b.height == height);
+            if (block) {
+                const names = block.extras?.pool?.minerNames || [];
+                const finder = names.length > 1 ? names[1] : "Ocean";
+                blockFinderCache[height] = finder;
+                return finder;
+            }
+        } catch(e) {}
+        return "Ocean";
+    }
+
+    const REPO_RAW_URL = 'https://raw.githubusercontent.com/yourusername/yourrepo/main/live_data.json';  // Replace with your repo details
+
+    async function loadLiveFromRepo() {
+       try {
+         const res = await fetch(REPO_RAW_URL + '?' + new Date().getTime());  // Cache-bust with timestamp
+         if (!res.ok) throw new Error('Failed to fetch');
+         const stored = await res.json();
+         const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+         const filterTime = (liveRange === 'window' && windowStartTime > 0) ? windowStartTime : twentyFourHoursAgo;
+         
+         const history = stored.filter(d => d.timestamp > filterTime);
+
+         liveChart.data.labels = history.map(d => d.time);
+         liveChart.data.datasets[0].data = history.map(d => d.ph);
+         liveChart.data.datasets[1].data = history.map(d => d.miners || 0);
+         liveChart.update();
+       } catch (e) { console.error('Load error:', e); }
+     }
+
+    function toggleLiveRange(range) {
+        liveRange = range;
+        document.getElementById('live-btn-24h').classList.toggle('active', range === '24h');
+        document.getElementById('live-btn-window').classList.toggle('active', range === 'window');
+        loadLiveFromRepo();
+    }
+
+    function setSort(k) {
+        if (currentSort.key === k) currentSort.asc = !currentSort.asc;
+        else { currentSort.key = k; currentSort.asc = (k !== 'name'); } 
+        renderWorkers(1);
+    }
+
+    function filterHist(days) {
+        const btns = document.querySelectorAll('.chart-box:first-child .btn-sm');
+        btns.forEach(b => b.classList.remove('active'));
+        if (event && event.target.tagName === 'BUTTON') event.target.classList.add('active');
+        const filtered = days === 0 ? fullHistData : fullHistData.slice(-days);
+        histChart.data.labels = filtered.map(d => d.date);
+        histChart.data.datasets[0].data = filtered.map(d => (parseFloat(d.hashrate_avg_24hr_thsec)/1000).toFixed(2));
+        histChart.update();
+    }
+
+    function renderPagination(id, page, total, limit, callback) {
+        const pages = Math.ceil(total / limit);
+        if (pages <= 1) { document.getElementById(id).innerHTML = ""; return; }
+        document.getElementById(id).innerHTML = `
+            <button ${page === 1 ? 'disabled' : ''} onclick="${callback}(${page - 1})">Prev</button>
+            <span>Page ${page} of ${pages}</span>
+            <button ${page === pages ? 'disabled' : ''} onclick="${callback}(${page + 1})">Next</button>
+        `;
+    }
+
+    function renderWorkers(page = 1) {
+        const limit = 25;
+        const query = document.getElementById('miner-search').value.toLowerCase();
+        let filtered = lastWorkers.filter(m => m.name.toLowerCase().includes(query));
+        const sorted = [...filtered].sort((a, b) => {
+            let valA = a[currentSort.key], valB = b[currentSort.key];
+            if (typeof valA === 'string') return currentSort.asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            return currentSort.asc ? valA - valB : valB - valA;
         });
+        const start = (page - 1) * limit;
+        const paginated = sorted.slice(start, start + limit);
+        document.querySelectorAll('#miner-headers th').forEach(th => {
+            const key = th.getAttribute('data-key'), span = th.querySelector('span');
+            if (key === currentSort.key) { th.classList.add('active-sort'); span.innerText = currentSort.asc ? '▲' : '▼'; }
+            else { th.classList.remove('active-sort'); span.innerText = '↕'; }
+        });
+        document.getElementById('worker-table').innerHTML = paginated.map(m => `
+            <tr><td><b>${m.name}</b></td><td>${m.h5.toFixed(2)}</td><td>${m.h3.toFixed(2)}</td><td>${m.h24.toFixed(2)}</td>
+            <td style="color:${m.status === 'ACTIVE' ? 'var(--ok)' : 'var(--dead)'}">● ${m.status}</td></tr>`).join('');
+        renderPagination('miner-pagination', page, sorted.length, limit, 'renderWorkers');
+    }
+
+    async function renderEarnings(page = 1) {
+        const limit = 10;
+        const start = (page - 1) * limit;
+        const paginated = allEarnings.slice(start, start + limit);
+        const rows = await Promise.all(paginated.map(async e => {
+            const f = await getFinder(e.Blockheight);
+            return `<tr><td>${e.TimeUTC.substring(5,16)}</td><td><a class="tx-link" href="https://mempool.space/block/${e.Blockheight}" target="_blank">#${e.Blockheight}</a></td><td style="color:var(--accent)">${f}</td><td>${satsToBtc(e.NetUserRwd)}</td></tr>`;
+        }));
+        document.getElementById('earnings-table').innerHTML = rows.join('');
+        renderPagination('earnings-pagination', page, allEarnings.length, limit, 'renderEarnings');
+    }
+
+    function renderPayouts(page = 1) {
+        const limit = 10;
+        const start = (page - 1) * limit;
+        const paginated = allPayouts.slice(start, start + limit);
+        document.getElementById('payouts-table').innerHTML = paginated.map(p => `<tr><td>${p.TimeUTC.substring(5,16)}</td><td>${satsToBtc(p.PayoutAmt)}</td><td><a class="tx-link" href="https://mempool.space/tx/${p.TXID}" target="_blank">${p.TXID.substring(0,8)}</a></td></tr>`).join('');
+        renderPagination('payouts-pagination', page, allPayouts.length, limit, 'renderPayouts');
+    }
+
+    async function fetchRecursiveReport(type, limit = 50) {
+        let results = [];
+        let date = new Date();
+        for (let i = 0; i < 6; i++) {
+            const y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, '0');
+            const ep = type === 'earnings' ? 'monthly_earnings_report' : 'monthly_payout_report';
+            try {
+                const res = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/${ep}/${WALLET}/${y}-${m}`));
+                const data = await res.json();
+                const report = data.result?.report || [];
+                results.push(...(type === 'earnings' ? report.filter(r => r.Blockheight !== "-1") : report));
+                if (results.length >= limit) break;
+            } catch (e) {}
+            date.setMonth(date.getMonth() - 1);
+        }
+        return results.sort((a,b) => new Date(b.TimeUTC) - new Date(a.TimeUTC));
+    }
+
+    async function fetchDeepHistory() {
+        let date = new Date();
+        const results = [];
+        for(let i=0; i<24; i++) {
+            const y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, '0');
+            try {
+                const res = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/monthly_user_report/${WALLET}/${y}-${m}`));
+                const data = await res.json();
+                if(data.result?.report) results.push(...data.result.report);
+            } catch(e) {}
+            date.setMonth(date.getMonth() - 1);
+        }
+        fullHistData = results.filter(d => parseFloat(d.hashrate_avg_24hr_thsec) > 0).sort((a,b) => new Date(a.date) - new Date(b.date));
+        if(fullHistData.length > 0) {
+            const calcPH = (days) => {
+                const slice = fullHistData.slice(-days);
+                return slice.length ? slice.reduce((a,b)=>a+(parseFloat(b.hashrate_avg_24hr_thsec)/1000),0)/slice.length : 0;
+            };
+            const priceRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
+            const price = parseFloat((await priceRes.json()).data.amount);
+            const earningsAll = await fetchRecursiveReport('earnings', 200);
+            const getBtcSum = (days) => {
+                const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+                return earningsAll.reduce((acc, e) => (new Date(e.TimeUTC) > cutoff ? acc + parseFloat(e.NetUserRwd) : acc), 0) / 100000000;
+            };
+            const ph30 = calcPH(30), btc30 = getBtcSum(30);
+            const ph60 = calcPH(60), btc60 = getBtcSum(60);
+            const ph90 = calcPH(90), btc90 = getBtcSum(90);
+            if(ph30 > 0) document.getElementById('t_hashprice_ocean').innerText = `$${(((btc30/ph30)/30)*price).toFixed(2)}`;
+            document.getElementById('t_hashprice_ocean_sub').innerText = `60d: $${ph60 > 0 ? (((btc60/ph60)/60)*price).toFixed(2) : '0'} | 90d: $${ph90 > 0 ? (((btc90/ph90)/90)*price).toFixed(2) : '0'}`;
+        }
+        filterHist(0);
     }
 
     async function update() {
         if (!WALLET) return;
         document.getElementById('auth-overlay').style.display = 'none';
-
+        document.getElementById('wallet-input-footer').value = WALLET;
         try {
-            const btcRes = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
-            const btcJson = await btcRes.json();
-            const price = parseFloat(btcJson.data.amount) || 0;
-            document.getElementById('btc_price').innerText = `$${price.toLocaleString()}`;
-
-            const hrUrl = PROXY + encodeURIComponent(`${OCEAN_API}/user_hashrate_full/${WALLET}`);
-            const snUrl = PROXY + encodeURIComponent(`${OCEAN_API}/statsnap/${WALLET}`);
-            const [hrRes, snRes] = await Promise.all([fetch(hrUrl), fetch(snUrl)]);
+            const [priceRes, hrNetRes, blocksNetRes, diffRes, mPoolBlocksRes, tipRes] = await Promise.all([
+                fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot"),
+                fetch('https://mempool.space/api/v1/mining/hashrate/24h'),
+                fetch('https://mempool.space/api/v1/blocks'),
+                fetch(`https://mempool.space/api/v1/difficulty-adjustment`),
+                fetch(`https://mempool.space/api/v1/mining/pool/ocean/blocks`),
+                fetch('https://mempool.space/api/blocks/tip/height')
+            ]);
+            const btcPrice = parseFloat((await priceRes.json()).data.amount);
+            document.getElementById('t_btc_price').innerText = btcPrice.toLocaleString('en-US', {style:'currency', currency:'USD'});
+            const netHrData = await hrNetRes.json(), lastBlocks = await blocksNetRes.json();
+            const netPH = netHrData.currentHashrate / 1e15;
+            const avgBlockRewardBTC = lastBlocks.reduce((acc, b) => acc + (b.extras.reward / 1e8), 0) / lastBlocks.length;
+            document.getElementById('t_hashprice').innerText = `$${(((144 * avgBlockRewardBTC) / netPH) * btcPrice).toFixed(2)}`;
+            const diffData = await diffRes.json(), currentTip = await tipRes.json();
+            const blocksLeft = diffData.nextRetargetHeight - currentTip;
+            document.getElementById('t_diff_progress').style.width = diffData.progressPercent.toFixed(1) + '%';
+            document.getElementById('t_diff').innerText = `${diffData.difficultyChange > 0 ? '+' : ''}${diffData.difficultyChange.toFixed(2)}%`;
             
-            const hrData = await hrRes.json();
-            const snData = await snRes.json();
+            const remainingMs = diffData.remainingTime;
+            const timeStr = remainingMs < 86400000 
+                ? `${(remainingMs / 3600000).toFixed(1)}h` 
+                : `${(remainingMs / 86400000).toFixed(1)}d`;
+            document.getElementById('t_diff_sub').innerText = `${blocksLeft} Blocks left (~${timeStr})`;
 
-            const btcBalance = parseFloat(snData.result?.unpaid || snData.unpaid) || 0;
-            document.getElementById('t_unpaid').innerText = `${btcBalance.toFixed(8)} BTC`;
-            document.getElementById('t_usd').innerText = `$${(btcBalance * price).toLocaleString(undefined, {minimumFractionDigits: 2})} USD`;
-
-            const wObj = hrData.result?.workers || hrData.workers || {};
-            let t5 = 0, t3 = 0, t24 = 0;
-            
-            let workers = Object.keys(wObj).map(name => {
-                const s = Array.isArray(wObj[name]) ? wObj[name][0] : wObj[name];
-                const r5 = parseFloat(s.hashrate_300s) || 0;
-                const r3 = parseFloat(s.hashrate_10800s) || 0;
-                const r24 = parseFloat(s.hashrate_86400s) || 0;
-                t5 += r5; t3 += r3; t24 += r24;
-                
-                // Red/Green logic: If 5m hashrate is 0, they are offline
-                const isOnline = r5 > 0;
-                return { name, h5: (r5/1e12).toFixed(2), h3: (r3/1e12).toFixed(2), h24: (r24/1e12).toFixed(2), online: isOnline };
-            });
-
-            const s5 = formatHashrate(t5);
-            const s3 = formatHashrate(t3);
-            const s24 = formatHashrate(t24);
-
-            document.getElementById('t_hr').innerText = s5.v + " " + s5.u;
-            document.getElementById('t_hr_avg').innerText = `3h: ${s3.v} ${s3.u} | 24h: ${s24.v} ${s24.u}`;
-
-            chart.options.scales.y.title.text = 'Hashrate (' + s5.u + ')';
-            const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            
-            chart.data.labels.push(now);
-            chart.data.datasets[0].data.push(s5.v);
-            chart.data.datasets[1].data.push(s3.v);
-            chart.data.datasets[2].data.push(s24.v);
-
-            if (chart.data.labels.length > 288) {
-                chart.data.labels.shift();
-                chart.data.datasets.forEach(d => d.data.shift());
+            const avgTimeMs = diffData.timeAvg, netMin = Math.floor(avgTimeMs / 60000), netSec = Math.floor((avgTimeMs % 60000) / 1000);
+            document.getElementById('t_avg_block_time').innerText = `Avg Block: ${netMin}m ${netSec}s`;
+            const mPoolBlocks = await mPoolBlocksRes.json();
+            if (mPoolBlocks && mPoolBlocks[0]) {
+                lastBlockTime = mPoolBlocks[0].timestamp;
+                document.getElementById('p-height').innerText = "#" + mPoolBlocks[0].height;
+                document.getElementById('p-height-link').href = `https://mempool.space/block/${mPoolBlocks[0].height}`;
+                document.getElementById('p-full-rwd').innerText = satsToBtc(mPoolBlocks[0].extras?.reward) + " BTC";
+                const names = mPoolBlocks[0].extras?.pool?.minerNames || [];
+                document.getElementById('p-finder').innerText = names.length > 1 ? names[1] : (names[0] || "Ocean");
             }
-            chart.update();
-            localStorage.setItem('miner_history_v8', JSON.stringify({ 
-                labels: chart.data.labels, h5: chart.data.datasets[0].data, h3: chart.data.datasets[1].data, h24: chart.data.datasets[2].data, u: s5.u 
-            }));
+            const [hrRes, uRes, pHRRes, blocksRes, earnings, payouts] = await Promise.all([
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/pool_hashrate`)),
+                fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/blocks?page=0&page_size=100`)),
+                fetchRecursiveReport('earnings', 100), 
+                fetchRecursiveReport('payouts', 50)
+            ]);
+            allEarnings = earnings;
+            allPayouts = payouts;
+            const u = (await uRes.json()).result || {};
+            const pHRData = await pHRRes.json();
+            const poolBlocks = (await blocksRes.json()).result?.blocks || [];
+            
+            const poolEH = parseFloat(pHRData.result?.pool_300s || 0);
+            const sharelog_target = parseFloat(poolBlocks[0]?.sharelog_window || 0);
+            const windowTimeSec = (sharelog_target * Math.pow(2, 32)) / poolEH;
+            const nowSec = Date.now() / 1000;
+            const windowStartTimestamp = nowSec - windowTimeSec;
+            windowStartTime = windowStartTimestamp * 1000;
 
-            document.getElementById('w-body').innerHTML = workers.map(w => `
-                <tr>
-                    <td><b>${w.name}</b></td>
-                    <td>${w.h5}</td>
-                    <td>${w.h3}</td>
-                    <td>${w.h24}</td>
-                    <td class="${w.online ? 'status-online' : 'status-offline'}">${w.online ? 'ONLINE' : 'OFFLINE'}</td>
-                </tr>
-            `).join('');
+            let blocksInCurrentWindow = 0;
+            for (const b of poolBlocks) {
+                const blockTime = Date.parse(b.ts) / 1000;
+                if (blockTime >= windowStartTimestamp) {
+                    blocksInCurrentWindow++;
+                } else {
+                    break;
+                }
+            }
+            document.getElementById('p-blocks').innerText = blocksInCurrentWindow;
+
+            document.getElementById('p-hr').innerText = (poolEH / 1e18).toFixed(2) + " EH/s";
+            document.getElementById('t_ocean_avg_block').innerText = `Pool Block: ~${((netPH / ((poolEH / 1e18) * 1000)) * (10 / 60)).toFixed(1)}h`;
+            
+            document.getElementById('t_unpaid').innerText = parseFloat(u.unpaid||0).toFixed(8);
+            document.getElementById('t_usd').innerText = "$" + (parseFloat(u.unpaid||0) * btcPrice).toFixed(2);
+            document.getElementById('t_est').innerText = parseFloat(u.estimated_earn_next_block||0).toFixed(8);
+            document.getElementById('t_est_usd').innerText = "$" + (parseFloat(u.estimated_earn_next_block||0) * btcPrice).toFixed(2);
+            let t5=0, t3=0, t24=0, activeCount=0, deadCount=0;
+            const ws = (await hrRes.json()).result?.workers || {};
+            lastWorkers = Object.keys(ws).map(n => {
+                const s = ws[n][0], curH = parseFloat(s.hashrate_300s);
+                t5 += curH; t3 += parseFloat(s.hashrate_10800s); t24 += parseFloat(s.hashrate_86400s);
+                if(curH > 0) activeCount++; else deadCount++;
+                return { name: n, h5: curH/1e12, h3: parseFloat(s.hashrate_10800s)/1e12, h24: parseFloat(s.hashrate_86400s)/1e12, status: curH > 0 ? 'ACTIVE' : 'INACTIVE', statusWeight: curH > 0 ? 1 : 0 };
+            });
+            document.getElementById('t_hr').innerText = (t5 / 1e15).toFixed(2) + " PH/s";
+            document.getElementById('t_hr_avg').innerText = `24h Avg: ${(t24 / 1e15).toFixed(2)} PH/s`;
+            document.getElementById('miner-active').innerText = activeCount;
+            document.getElementById('miner-dead').innerText = deadCount;
+            renderWorkers(1); renderEarnings(1); renderPayouts(1);
+            loadLiveFromRepo();
+            const e30 = getBtcSum(30);
+            document.getElementById('sum-btc-val').innerText = e30.toFixed(8) + " BTC";
+            document.getElementById('sum-usd-val').innerText = `($${(e30 * btcPrice).toLocaleString()})`;
         } catch (e) { console.error("Update Error:", e); }
     }
 
-    if (WALLET) { initChart(); update(); setInterval(update, 300000); }
+    function getBtcSum(days) {
+        const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+        return allEarnings.reduce((acc, e) => (new Date(e.TimeUTC) > cutoff ? acc + parseFloat(e.NetUserRwd) : acc), 0) / 100000000;
+    }
+
+    window.onload = async () => {
+        histChart = new Chart(document.getElementById('histChart').getContext('2d'), { 
+            type: 'line', 
+            data: { labels: [], datasets: [{ label: 'PH/s', data: [], borderColor: '#58a6ff', borderWidth: 2, tension: 0.1, backgroundColor: 'rgba(88,166,255,0.1)', fill: true, pointRadius: 1 }] }, 
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: false } } } 
+        });
+        liveChart = new Chart(document.getElementById('liveChart').getContext('2d'), { 
+            type: 'line', 
+            data: { labels: [], datasets: [
+                { label: 'PH/s', data: [], borderColor: '#3fb950', tension: 0.3, pointRadius: 0, borderWidth: 2 },
+                { label: 'Miners', data: [], borderColor: '#ff7b72', yAxisID: 'y1', tension: 0.1, pointRadius: 0, borderDash: [5,5] }
+            ]}, 
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true }, y1: { position: 'right', beginAtZero: true, grid: { display: false } } } } 
+        });
+        btcSparkline = new Chart(document.getElementById('btcSparkline').getContext('2d'), {
+            type: 'line',
+            data: { labels: [], datasets: [{ data: [], borderColor: '#F7931A', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(247, 147, 26, 0.1)', tension: 0.3 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
+        });
+        if(WALLET) { update(); fetchDeepHistory(); fetchBtcSparkline(); setInterval(update, 60000); }
+    };
 </script>
 </body>
 </html>
