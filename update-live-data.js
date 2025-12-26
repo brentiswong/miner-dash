@@ -1,24 +1,22 @@
 const fs = require('fs');
-const fetch = require('node-fetch');
+const fetch = require('node-fetch'); // This is crucial!
 
 const WALLET = process.env.WALLET;
 const PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
 
 async function updateLiveData() {
-  console.log('Starting update for wallet:', WALLET);
+  console.log('Starting update for wallet:', WALLET || 'NOT SET');
 
   try {
     console.log('Fetching user hashrate...');
     const hrRes = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/user_hashrate_full/${WALLET}`));
     console.log('HR response status:', hrRes.status);
-    const hrText = await hrRes.text();
-    console.log('HR response body:', hrText.substring(0, 500)); // First 500 chars
+    if (!hrRes.ok) throw new Error(`HR fetch failed: ${hrRes.status}`);
 
     console.log('Fetching statsnap...');
     const uRes = await fetch(PROXY + encodeURIComponent(`https://api.ocean.xyz/v1/statsnap/${WALLET}`));
     console.log('Statsnap response status:', uRes.status);
-    const uText = await uRes.text();
-    console.log('Statsnap response body:', uText.substring(0, 500));
+    if (!uRes.ok) throw new Error(`Statsnap fetch failed: ${uRes.status}`);
 
     const u = (await uRes.json()).result || {};
     const ws = (await hrRes.json()).result?.workers || {};
@@ -41,7 +39,8 @@ async function updateLiveData() {
     let data = [];
     if (fs.existsSync('live_data.json')) {
       console.log('Reading existing live_data.json');
-      data = JSON.parse(fs.readFileSync('live_data.json', 'utf8'));
+      const content = fs.readFileSync('live_data.json', 'utf8');
+      data = JSON.parse(content);
     } else {
       console.log('No existing live_data.json - starting new array');
     }
@@ -51,9 +50,9 @@ async function updateLiveData() {
     const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
     data = data.filter(d => d.timestamp > sevenDaysAgo).slice(-10080);
 
-    console.log('Writing updated data to live_data.json');
+    console.log('Writing to live_data.json - new entry count:', data.length);
     fs.writeFileSync('live_data.json', JSON.stringify(data, null, 2));
-    console.log('File written successfully. Entries now:', data.length);
+    console.log('File written successfully');
   } catch (e) {
     console.error('Error in update script:', e.message);
     console.error(e.stack);
