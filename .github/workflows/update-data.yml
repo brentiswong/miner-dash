@@ -2,7 +2,8 @@ name: Update Live Data
 
 on:
   schedule:
-    - cron: '* * * * *'  # Every minute (adjust to '*/5 * * * *' for every 5 min if needed)
+    - cron: '* * * * *'
+  workflow_dispatch:  # Allows manual run from Actions tab
 
 jobs:
   update:
