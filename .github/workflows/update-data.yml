@@ -1,0 +1,35 @@
+name: Update Live Data
+
+on:
+  schedule:
+    - cron: '* * * * *'  # Every minute (adjust to '*/5 * * * *' for every 5 min if needed)
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}  # Auto-provided for commits
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'  # Or your preferred version
+
+      - name: Install dependencies
+        run: npm install node-fetch  # If needed; script uses built-ins + fetch
+
+      - name: Run update script
+        env:
+          WALLET: ${{ secrets.WALLET }}  # Your BTC wallet address as a secret
+        run: node update-live-data.js  # Adjust path if in scripts/
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name 'GitHub Action'
+          git config --global user.email 'action@github.com'
+          git add live_data.json
+          git commit -m 'Update live performance data' || echo "No changes to commit"
+          git push
