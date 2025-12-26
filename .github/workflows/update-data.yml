@@ -1,23 +1,30 @@
 name: Update Live Data
+
 permissions:
   contents: write
+
 on:
   schedule:
-    - cron: '* * * * *'  # Every minute
+    - cron: '* * * * *'
   workflow_dispatch:
+
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
       - name: Run update script
         env:
           WALLET: ${{ secrets.WALLET }}
         run: node update-live-data.js
-      - name: Commit changes
+
+      - name: Commit and push changes
         run: |
           git config --global user.name 'GitHub Action'
           git config --global user.email 'action@github.com'
           git add live_data.json
-          git diff --staged --quiet || git commit -m 'Update live data'
-          git push
+          git commit -m 'Update live performance data' --allow-empty || echo "No changes to commit"
+          git pull --rebase origin main
+          git push origin main
