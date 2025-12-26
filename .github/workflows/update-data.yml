@@ -1,19 +1,19 @@
 name: Update Live Data
 
 permissions:
-  contents: write  # This is crucial for push
+  contents: write   # This explicitly allows push
 
 on:
   schedule:
     - cron: '* * * * *'
-  workflow_dispatch:  # Lets you run manually
+  workflow_dispatch:
 
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4   # No token needed
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
