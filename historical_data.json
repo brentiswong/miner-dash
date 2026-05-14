@@ -1,5 +1,10 @@
 [
   {
+    "date": "2026-05-13",
+    "hashrate_avg_24hr_thsec": "11053.62",
+    "earnings_btc": "0.00493993"
+  },
+  {
     "date": "2026-05-12",
     "hashrate_avg_24hr_thsec": "11608.25",
     "earnings_btc": "0.00505313"
