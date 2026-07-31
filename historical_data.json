@@ -1,8 +1,28 @@
 [
   {
+    "date": "2026-07-30",
+    "hashrate_avg_24hr_thsec": "120.75",
+    "earnings_btc": "0.00009525"
+  },
+  {
+    "date": "2026-07-30",
+    "hashrate_avg_24hr_thsec": "120.75",
+    "earnings_btc": "0.00009525"
+  },
+  {
     "date": "2026-07-29",
     "hashrate_avg_24hr_thsec": "115.88",
     "earnings_btc": "0.00002367"
+  },
+  {
+    "date": "2026-07-29",
+    "hashrate_avg_24hr_thsec": "115.88",
+    "earnings_btc": "0.00002367"
+  },
+  {
+    "date": "2026-07-28",
+    "hashrate_avg_24hr_thsec": "120.90",
+    "earnings_btc": "0.00004402"
   },
   {
     "date": "2026-07-28",
@@ -15,9 +35,24 @@
     "earnings_btc": "0.00003203"
   },
   {
+    "date": "2026-07-27",
+    "hashrate_avg_24hr_thsec": "117.48",
+    "earnings_btc": "0.00003203"
+  },
+  {
     "date": "2026-07-26",
     "hashrate_avg_24hr_thsec": "118.66",
     "earnings_btc": "0.00006147"
+  },
+  {
+    "date": "2026-07-26",
+    "hashrate_avg_24hr_thsec": "118.66",
+    "earnings_btc": "0.00006147"
+  },
+  {
+    "date": "2026-07-25",
+    "hashrate_avg_24hr_thsec": "118.75",
+    "earnings_btc": "0.00006493"
   },
   {
     "date": "2026-07-25",
@@ -30,9 +65,24 @@
     "earnings_btc": "0.00003767"
   },
   {
+    "date": "2026-07-24",
+    "hashrate_avg_24hr_thsec": "110.18",
+    "earnings_btc": "0.00003767"
+  },
+  {
     "date": "2026-07-23",
     "hashrate_avg_24hr_thsec": "59.06",
     "earnings_btc": "0.00002485"
+  },
+  {
+    "date": "2026-07-23",
+    "hashrate_avg_24hr_thsec": "59.06",
+    "earnings_btc": "0.00002485"
+  },
+  {
+    "date": "2026-07-22",
+    "hashrate_avg_24hr_thsec": "68.67",
+    "earnings_btc": "0.00010402"
   },
   {
     "date": "2026-07-22",
@@ -45,9 +95,24 @@
     "earnings_btc": "0.00039576"
   },
   {
+    "date": "2026-07-21",
+    "hashrate_avg_24hr_thsec": "39.77",
+    "earnings_btc": "0.00039576"
+  },
+  {
     "date": "2026-07-20",
     "hashrate_avg_24hr_thsec": "1100.64",
     "earnings_btc": "0.00083937"
+  },
+  {
+    "date": "2026-07-20",
+    "hashrate_avg_24hr_thsec": "1100.64",
+    "earnings_btc": "0.00083937"
+  },
+  {
+    "date": "2026-07-19",
+    "hashrate_avg_24hr_thsec": "1948.93",
+    "earnings_btc": "0.00037785"
   },
   {
     "date": "2026-07-19",
@@ -60,9 +125,24 @@
     "earnings_btc": "0.00017308"
   },
   {
+    "date": "2026-07-18",
+    "hashrate_avg_24hr_thsec": "1883.22",
+    "earnings_btc": "0.00017308"
+  },
+  {
     "date": "2026-07-17",
     "hashrate_avg_24hr_thsec": "1429.98",
     "earnings_btc": "0.00018126"
+  },
+  {
+    "date": "2026-07-17",
+    "hashrate_avg_24hr_thsec": "1429.98",
+    "earnings_btc": "0.00018126"
+  },
+  {
+    "date": "2026-07-16",
+    "hashrate_avg_24hr_thsec": "1496.79",
+    "earnings_btc": "0.00050217"
   },
   {
     "date": "2026-07-16",
@@ -75,9 +155,24 @@
     "earnings_btc": "0.00066980"
   },
   {
+    "date": "2026-07-15",
+    "hashrate_avg_24hr_thsec": "1495.49",
+    "earnings_btc": "0.00066980"
+  },
+  {
     "date": "2026-07-14",
     "hashrate_avg_24hr_thsec": "1321.63",
     "earnings_btc": "0.00260619"
+  },
+  {
+    "date": "2026-07-14",
+    "hashrate_avg_24hr_thsec": "1321.63",
+    "earnings_btc": "0.00260619"
+  },
+  {
+    "date": "2026-07-13",
+    "hashrate_avg_24hr_thsec": "3885.04",
+    "earnings_btc": "0.00813079"
   },
   {
     "date": "2026-07-13",
@@ -90,9 +185,24 @@
     "earnings_btc": "0.00515389"
   },
   {
+    "date": "2026-07-12",
+    "hashrate_avg_24hr_thsec": "9273.08",
+    "earnings_btc": "0.00515389"
+  },
+  {
     "date": "2026-07-11",
     "hashrate_avg_24hr_thsec": "9369.31",
     "earnings_btc": "0.00515886"
+  },
+  {
+    "date": "2026-07-11",
+    "hashrate_avg_24hr_thsec": "9369.31",
+    "earnings_btc": "0.00515886"
+  },
+  {
+    "date": "2026-07-10",
+    "hashrate_avg_24hr_thsec": "8694.99",
+    "earnings_btc": "0.00419689"
   },
   {
     "date": "2026-07-10",
@@ -105,9 +215,24 @@
     "earnings_btc": "0.00625563"
   },
   {
+    "date": "2026-07-09",
+    "hashrate_avg_24hr_thsec": "8592.49",
+    "earnings_btc": "0.00625563"
+  },
+  {
     "date": "2026-07-08",
     "hashrate_avg_24hr_thsec": "8496.10",
     "earnings_btc": "0.00307970"
+  },
+  {
+    "date": "2026-07-08",
+    "hashrate_avg_24hr_thsec": "8496.10",
+    "earnings_btc": "0.00307970"
+  },
+  {
+    "date": "2026-07-07",
+    "hashrate_avg_24hr_thsec": "8587.22",
+    "earnings_btc": "0.00529471"
   },
   {
     "date": "2026-07-07",
@@ -120,9 +245,24 @@
     "earnings_btc": "0.00000000"
   },
   {
+    "date": "2026-07-06",
+    "hashrate_avg_24hr_thsec": "8626.21",
+    "earnings_btc": "0.00000000"
+  },
+  {
     "date": "2026-07-05",
     "hashrate_avg_24hr_thsec": "9317.92",
     "earnings_btc": "0.00479955"
+  },
+  {
+    "date": "2026-07-05",
+    "hashrate_avg_24hr_thsec": "9317.92",
+    "earnings_btc": "0.00479955"
+  },
+  {
+    "date": "2026-07-04",
+    "hashrate_avg_24hr_thsec": "9272.22",
+    "earnings_btc": "0.00651096"
   },
   {
     "date": "2026-07-04",
@@ -135,9 +275,24 @@
     "earnings_btc": "0.00666792"
   },
   {
+    "date": "2026-07-03",
+    "hashrate_avg_24hr_thsec": "9086.75",
+    "earnings_btc": "0.00666792"
+  },
+  {
     "date": "2026-07-02",
     "hashrate_avg_24hr_thsec": "9014.35",
     "earnings_btc": "0.00292295"
+  },
+  {
+    "date": "2026-07-02",
+    "hashrate_avg_24hr_thsec": "9014.35",
+    "earnings_btc": "0.00292295"
+  },
+  {
+    "date": "2026-07-01",
+    "hashrate_avg_24hr_thsec": "8980.28",
+    "earnings_btc": "0.00435377"
   },
   {
     "date": "2026-07-01",
@@ -605,24 +760,9 @@
     "earnings_btc": "0.00541927"
   },
   {
-    "date": "2026-03-31",
-    "hashrate_avg_24hr_thsec": "11850.55",
-    "earnings_btc": "0.00541927"
-  },
-  {
     "date": "2026-03-30",
     "hashrate_avg_24hr_thsec": "11837.42",
     "earnings_btc": "0.00267310"
-  },
-  {
-    "date": "2026-03-30",
-    "hashrate_avg_24hr_thsec": "11837.42",
-    "earnings_btc": "0.00267310"
-  },
-  {
-    "date": "2026-03-29",
-    "hashrate_avg_24hr_thsec": "11825.15",
-    "earnings_btc": "0.00547143"
   },
   {
     "date": "2026-03-29",
@@ -635,24 +775,9 @@
     "earnings_btc": "0.01117229"
   },
   {
-    "date": "2026-03-28",
-    "hashrate_avg_24hr_thsec": "11561.71",
-    "earnings_btc": "0.01117229"
-  },
-  {
     "date": "2026-03-27",
     "hashrate_avg_24hr_thsec": "11517.78",
     "earnings_btc": "0.00579614"
-  },
-  {
-    "date": "2026-03-27",
-    "hashrate_avg_24hr_thsec": "11517.78",
-    "earnings_btc": "0.00579614"
-  },
-  {
-    "date": "2026-03-26",
-    "hashrate_avg_24hr_thsec": "12453.55",
-    "earnings_btc": "0.00000000"
   },
   {
     "date": "2026-03-26",
@@ -665,24 +790,9 @@
     "earnings_btc": "0.00605561"
   },
   {
-    "date": "2026-03-25",
-    "hashrate_avg_24hr_thsec": "12329.84",
-    "earnings_btc": "0.00605561"
-  },
-  {
     "date": "2026-03-24",
     "hashrate_avg_24hr_thsec": "12371.55",
     "earnings_btc": "0.00308087"
-  },
-  {
-    "date": "2026-03-24",
-    "hashrate_avg_24hr_thsec": "12371.55",
-    "earnings_btc": "0.00308087"
-  },
-  {
-    "date": "2026-03-23",
-    "hashrate_avg_24hr_thsec": "12463.17",
-    "earnings_btc": "0.00311378"
   },
   {
     "date": "2026-03-23",
@@ -695,24 +805,9 @@
     "earnings_btc": "0.00320361"
   },
   {
-    "date": "2026-03-22",
-    "hashrate_avg_24hr_thsec": "12434.11",
-    "earnings_btc": "0.00320361"
-  },
-  {
     "date": "2026-03-21",
     "hashrate_avg_24hr_thsec": "12669.94",
     "earnings_btc": "0.00000000"
-  },
-  {
-    "date": "2026-03-21",
-    "hashrate_avg_24hr_thsec": "12669.94",
-    "earnings_btc": "0.00000000"
-  },
-  {
-    "date": "2026-03-20",
-    "hashrate_avg_24hr_thsec": "12711.67",
-    "earnings_btc": "0.00636473"
   },
   {
     "date": "2026-03-20",
@@ -725,24 +820,9 @@
     "earnings_btc": "0.00645178"
   },
   {
-    "date": "2026-03-19",
-    "hashrate_avg_24hr_thsec": "12843.91",
-    "earnings_btc": "0.00645178"
-  },
-  {
     "date": "2026-03-18",
     "hashrate_avg_24hr_thsec": "12827.29",
     "earnings_btc": "0.00323770"
-  },
-  {
-    "date": "2026-03-18",
-    "hashrate_avg_24hr_thsec": "12827.29",
-    "earnings_btc": "0.00323770"
-  },
-  {
-    "date": "2026-03-17",
-    "hashrate_avg_24hr_thsec": "12670.34",
-    "earnings_btc": "0.00643952"
   },
   {
     "date": "2026-03-17",
@@ -755,24 +835,9 @@
     "earnings_btc": "0.01285982"
   },
   {
-    "date": "2026-03-16",
-    "hashrate_avg_24hr_thsec": "12726.75",
-    "earnings_btc": "0.01285982"
-  },
-  {
     "date": "2026-03-15",
     "hashrate_avg_24hr_thsec": "13307.20",
     "earnings_btc": "0.00318670"
-  },
-  {
-    "date": "2026-03-15",
-    "hashrate_avg_24hr_thsec": "13307.20",
-    "earnings_btc": "0.00318670"
-  },
-  {
-    "date": "2026-03-14",
-    "hashrate_avg_24hr_thsec": "13308.38",
-    "earnings_btc": "0.00316076"
   },
   {
     "date": "2026-03-14",
@@ -785,24 +850,9 @@
     "earnings_btc": "0.00313655"
   },
   {
-    "date": "2026-03-13",
-    "hashrate_avg_24hr_thsec": "13346.27",
-    "earnings_btc": "0.00313655"
-  },
-  {
     "date": "2026-03-12",
     "hashrate_avg_24hr_thsec": "13000.07",
     "earnings_btc": "0.00311181"
-  },
-  {
-    "date": "2026-03-12",
-    "hashrate_avg_24hr_thsec": "13000.07",
-    "earnings_btc": "0.00311181"
-  },
-  {
-    "date": "2026-03-11",
-    "hashrate_avg_24hr_thsec": "13327.65",
-    "earnings_btc": "0.00937940"
   },
   {
     "date": "2026-03-11",
@@ -815,24 +865,9 @@
     "earnings_btc": "0.00648178"
   },
   {
-    "date": "2026-03-10",
-    "hashrate_avg_24hr_thsec": "13192.43",
-    "earnings_btc": "0.00648178"
-  },
-  {
     "date": "2026-03-09",
     "hashrate_avg_24hr_thsec": "13159.68",
     "earnings_btc": "0.00998430"
-  },
-  {
-    "date": "2026-03-09",
-    "hashrate_avg_24hr_thsec": "13159.68",
-    "earnings_btc": "0.00998430"
-  },
-  {
-    "date": "2026-03-08",
-    "hashrate_avg_24hr_thsec": "13070.14",
-    "earnings_btc": "0.01042045"
   },
   {
     "date": "2026-03-08",
@@ -845,24 +880,9 @@
     "earnings_btc": "0.00374846"
   },
   {
-    "date": "2026-03-07",
-    "hashrate_avg_24hr_thsec": "13260.57",
-    "earnings_btc": "0.00374846"
-  },
-  {
     "date": "2026-03-06",
     "hashrate_avg_24hr_thsec": "14264.57",
     "earnings_btc": "0.01524629"
-  },
-  {
-    "date": "2026-03-06",
-    "hashrate_avg_24hr_thsec": "14264.57",
-    "earnings_btc": "0.01524629"
-  },
-  {
-    "date": "2026-03-05",
-    "hashrate_avg_24hr_thsec": "15532.00",
-    "earnings_btc": "0.00782790"
   },
   {
     "date": "2026-03-05",
@@ -875,16 +895,6 @@
     "earnings_btc": "0.02740262"
   },
   {
-    "date": "2026-03-04",
-    "hashrate_avg_24hr_thsec": "16210.01",
-    "earnings_btc": "0.02740262"
-  },
-  {
-    "date": "2026-03-03",
-    "hashrate_avg_24hr_thsec": "16045.49",
-    "earnings_btc": "0.00782865"
-  },
-  {
     "date": "2026-03-03",
     "hashrate_avg_24hr_thsec": "16045.49",
     "earnings_btc": "0.00782865"
@@ -893,16 +903,6 @@
     "date": "2026-03-02",
     "hashrate_avg_24hr_thsec": "15445.21",
     "earnings_btc": "0.01185895"
-  },
-  {
-    "date": "2026-03-02",
-    "hashrate_avg_24hr_thsec": "15445.21",
-    "earnings_btc": "0.01185895"
-  },
-  {
-    "date": "2026-03-01",
-    "hashrate_avg_24hr_thsec": "16564.40",
-    "earnings_btc": "0.00794016"
   },
   {
     "date": "2026-03-01",
