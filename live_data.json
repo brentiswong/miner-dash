@@ -1,17 +1,5 @@
 [
   {
-    "time": "12:50:09 AM",
-    "ph": 0,
-    "miners": 0,
-    "timestamp": 1789001409606
-  },
-  {
-    "time": "1:00:12 AM",
-    "ph": 0,
-    "miners": 0,
-    "timestamp": 1789002012808
-  },
-  {
     "time": "1:10:08 AM",
     "ph": 0,
     "miners": 0,
@@ -6328,5 +6316,11 @@
     "ph": 0,
     "miners": 0,
     "timestamp": 1789606208804
+  },
+  {
+    "time": "1:00:12 AM",
+    "ph": 0,
+    "miners": 0,
+    "timestamp": 1789606812881
   }
 ]
